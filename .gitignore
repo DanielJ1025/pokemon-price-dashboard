@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+
+# 감시기 자격증명·런타임 상태 (PC별 로컬)
+.env
+watcher/.env
+watcher/pokemon_deal_watch_state.json

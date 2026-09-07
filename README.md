@@ -41,3 +41,23 @@ python app.py
 - **정적(Artifact)**: `pokemon_price_dashboard_gen.py`가 생성. 공유 링크·이미지 임베드. 갱신은 재생성+재발행.
 - **라이브(이 앱)**: 항상 최신·어디서나. 이미지는 실시간 로드.
 둘 다 같은 콜렉토리 소스·같은 디자인.
+
+---
+
+## 📡 감시기 (텔레그램 매물 알림) — `watcher/`
+
+정가~조금 위 실구매가로 포켓몬 카드 박스가 뜨면 텔레그램 알림. 다나와 정식몰 집계(쿠팡 품절유령 필터 포함). 순수 파이썬, 크레딧 0.
+
+**각 PC 세팅:**
+```powershell
+git clone https://github.com/DanielJ1025/pokemon-price-dashboard
+cd pokemon-price-dashboard/watcher
+# .env 생성 (git 제외 — PC마다 직접):
+#   TELEGRAM_BOT_TOKEN=<봇토큰>
+#   TELEGRAM_CHAT_ID=<chat id>
+python pokemon_deal_watch.py --dry-run   # 미리보기
+powershell -ExecutionPolicy Bypass -File setup_pokemon_watch.ps1   # 상시 스케줄러 등록(3분)
+```
+- 상한/팩은 `pokemon_deal_watch.py`의 `WATCHES`에서 수정.
+- 대시보드 정적 HTML 재생성: `python pokemon_price_dashboard_gen.py`
+- 일본 여행 가이드: `watcher/일본_쇼핑가이드.md`
