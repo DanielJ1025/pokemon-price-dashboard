@@ -316,7 +316,8 @@ h1{font-size:clamp(28px,5vw,40px);line-height:1.1;margin:0 0 8px;letter-spacing:
 .rgrp>summary{list-style:none;padding:9px 2px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;user-select:none;display:flex;align-items:center;gap:9px}
 .rgrp>summary::-webkit-details-marker{display:none}
 .rgrp>summary:hover{color:var(--sar)}
-.rgrp-n{color:var(--faint);font-weight:600;font-size:12px}
+.rgrp>summary .chip{min-width:42px;text-align:center;flex:0 0 auto;box-sizing:border-box}
+.rgrp-n{color:var(--faint);font-weight:600;font-size:12px;display:inline-block;min-width:46px;flex:0 0 auto}
 .rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px}
 .tblwrap{overflow-x:auto;padding:0 0 10px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -561,9 +562,9 @@ _TABS_JS = '''(function(){
  function updateCounts(){
   let total=0,val=0;const wishN=Object.keys(DB.wish).length;
   packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;
-   const e=sec.querySelector('.own-cnt');if(e)e.textContent=st.uniq?(' · 보유 '+st.uniq+'종'+(st.cards>st.uniq?' '+st.cards+'장':'')):'';
+   const e=sec.querySelector('.own-cnt');if(e)e.textContent=st.uniq?(' · 보유 '+st.uniq+'종 '+st.cards+'장'):'';
    const pg=sec.querySelector('.pack-prog');if(pg)pg.innerHTML=st.base?('<span class="pbar"><i style="width:'+pct(st.ownedBase,st.base)+'%"></i></span> 정규 '+st.ownedBase+'/'+st.base+' ('+pct(st.ownedBase,st.base)+'%)'):'';
-   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0,gu=0;gr.querySelectorAll('.qty').forEach(el=>{const q=DB.qty[el.dataset.id]||0;if(q>0){gn+=q;gu++;}});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gu?('보유 '+gu+'종'+(gn>gu?' '+gn+'장':'')):'';});
+   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0,gu=0;gr.querySelectorAll('.qty').forEach(el=>{const q=DB.qty[el.dataset.id]||0;if(q>0){gn+=q;gu++;}});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gu?('보유 '+gu+'종 '+gn+'장'):'';});
   });
   const t=brand.querySelector('.own-total');if(t)t.textContent=(total||wishN)?('🎴 보유 '+total+'장 · 추정 '+won(val)+(wishN?(' · ★'+wishN):'')):'';
   chips['wish'].textContent='★위시'+(wishN?(' '+wishN):'');
@@ -602,7 +603,7 @@ _TABS_JS = '''(function(){
    if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const ebl=tr.querySelector('.ebay');const ebh=ebl?ebl.getAttribute('href'):'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div>'+(ebh?'<a class="ebay-a" href="'+ebh+'" target="_blank" rel="noopener nofollow">🇺🇸 eBay 시세</a>':'')+'</div>';body.appendChild(tile);}
    else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
   });
-  const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+label+' <span class="dim">'+items.length+'종'+(cnt>items.length?' '+cnt+'장':'')+' · '+won(sub)+'</span></div>';
+  const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+label+' <span class="dim">'+items.length+'종 '+cnt+'장 · '+won(sub)+'</span></div>';
   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');const thd=document.createElement('thead');thd.innerHTML=ownedHead();tbl.appendChild(thd);tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
   return d;
  }
