@@ -104,9 +104,12 @@ def _tr(g, show_rarity=False, pack=""):
     wb = (f'<button class="wish" data-id="{H.escape(str(g["id"]))}" title="위시리스트" tabindex="-1">★</button>'
           if g.get("id") else "")
     pk = f'<span class="pk">{H.escape(pack)}</span>' if pack else ""
+    eq = urllib.parse.quote(f'{g["name"]} {g["num"]} pokemon')
+    eb = (f'<a class="ebay" href="https://www.ebay.com/sch/i.html?_nkw={eq}&LH_Sold=1&LH_Complete=1" '
+          f'target="_blank" rel="noopener nofollow" title="eBay 미국 판매완료가 보기">🇺🇸</a>' if g.get("name") else "")
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
             f'<td><div class="cardcell">{qc}{wb}{imgtag}<span class="cc-txt">{tag} '
-            f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>{pk}'
+            f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>{eb}{pk}'
             f'</span></div></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
 
@@ -294,6 +297,8 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.wish:hover{color:var(--gold)}.wish.on{color:var(--gold)}'
              '.pk{display:none;font-size:10.5px;color:var(--faint);font-weight:600;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:5px;white-space:nowrap}'
              '.content.qmode .pk,#owned-panel .pk{display:inline-block}'
+             '.ebay{text-decoration:none;font-size:11px;margin-left:5px;opacity:.65}.ebay:hover{opacity:1}'
+             '.ebay-a{display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:var(--sr);text-decoration:none}.ebay-a:hover{text-decoration:underline}'
              '.pack-prog{flex-basis:100%;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600;margin-top:6px}'
              '.pbar{display:inline-block;width:130px;height:7px;border-radius:4px;background:var(--surface);overflow:hidden;flex:0 0 auto;border:1px solid var(--border)}'
              '.pbar i{display:block;height:100%;background:var(--own)}'
@@ -497,7 +502,7 @@ _TABS_JS = '''(function(){
   let sub=0,cnt=0;const alb=ownedView==='album';
   const body=alb?document.createElement('div'):document.createElement('tbody');if(alb)body.className='agrid';
   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;
-   if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div></div>';body.appendChild(tile);}
+   if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const ebl=tr.querySelector('.ebay');const ebh=ebl?ebl.getAttribute('href'):'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div>'+(ebh?'<a class="ebay-a" href="'+ebh+'" target="_blank" rel="noopener nofollow">🇺🇸 eBay 시세</a>':'')+'</div>';body.appendChild(tile);}
    else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
   });
   const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+label+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
