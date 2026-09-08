@@ -240,9 +240,9 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         '.rgrp-n{color:var(--faint);font-weight:600;font-size:12px}'
         '.rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px}'
         '.tblwrap{overflow-x:auto;padding:0 0 10px}'
-        '.full th.sortable{cursor:pointer;user-select:none}.full th.sortable:hover{color:var(--text)}'
-        '.full th.sorted{color:var(--sar)}.full th.sorted[data-dir="down"]::after{content:" ▾"}'
-        '.full th.sorted[data-dir="up"]::after{content:" ▴"}'
+        'th.sortable{cursor:pointer;user-select:none;white-space:nowrap}th.sortable:hover{color:var(--text)}'
+        'th.sorted{color:var(--sar)}th.sorted[data-dir="down"]::after{content:" ▾"}'
+        'th.sorted[data-dir="up"]::after{content:" ▴"}.osort .odir{background:var(--surface);border-color:var(--own);color:var(--own)}'
         'table{width:100%;border-collapse:collapse;font-size:12.5px}'
         'th{text-align:left;color:var(--faint);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}'
         'td{padding:6px 8px;border-bottom:1px solid var(--line)}'
@@ -435,12 +435,21 @@ _TABS_JS = '''(function(){
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
  const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='해당하는 카드가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
- let searchQ='',curTab=2,ownedSort='kr',ownedView='album';const btns=[];
+ let searchQ='',curTab=2,ownedSort='kr',ownedView='album',ownedDir=-1;const btns=[];
  const pct=(a,b)=>b?Math.round(a/b*100):0;
  const RANK={MUR:0,HR:0,UR:1,SAR:2,SR:3,AR:4,RR:5,R:6,ACE:7,U:8,C:9};
  const rrank=tr=>{const t=tr.querySelector('.rtag');const r=t?t.textContent.replace(/[\\[\\]]/g,'').trim():'';return RANK[r]==null?10:RANK[r];};
  const cellNum=(tr,sel)=>{const c=tr.querySelector(sel);return c?(parseInt(c.textContent.replace(/[^0-9]/g,''))||0):0;};
- function sortItems(items){items.sort((ea,eb)=>{const a=ea.closest('tr'),b=eb.closest('tr');if(ownedSort==='rarity'){const d=rrank(a)-rrank(b);if(d)return d;return cellNum(b,'.tp')-cellNum(a,'.tp');}if(ownedSort==='jp')return cellNum(b,'.tj')-cellNum(a,'.tj');return cellNum(b,'.tp')-cellNum(a,'.tp');});}
+ const cardName=tr=>{const a=tr.querySelector('.cc-txt a');return a?a.textContent.trim():'';};
+ const cardNum=tr=>parseInt(((tr.querySelector('.tn')||{textContent:''}).textContent||'').trim())||0;
+ function sortItems(items){items.sort((ea,eb)=>{const a=ea.closest('tr'),b=eb.closest('tr');let ka,kb;
+  if(ownedSort==='rarity'){ka=rrank(a);kb=rrank(b);}
+  else if(ownedSort==='name'){ka=cardName(a);kb=cardName(b);}
+  else if(ownedSort==='num'){ka=cardNum(a);kb=cardNum(b);}
+  else if(ownedSort==='jp'){ka=cellNum(a,'.tj');kb=cellNum(b,'.tj');}
+  else{ka=cellNum(a,'.tp');kb=cellNum(b,'.tp');}
+  return (typeof ka==='string'?ka.localeCompare(kb,'ko'):ka-kb)*ownedDir;});}
+ function ownedHead(){return '<tr>'+[['num','번호'],['name','카드'],['kr','🇰🇷한국'],['jp','🇯🇵일본']].map(x=>{const on=ownedSort===x[0];return '<th class="sortable'+(on?' sorted':'')+'" data-k="'+x[0]+'"'+(on?' data-dir="'+(ownedDir>0?'up':'down')+'"':'')+'>'+x[1]+'</th>';}).join('')+'</tr>';}
  function packStat(sec){
   const base=parseInt(sec.dataset.base)||0;const seen=new Set();let cards=0,val=0,dupes=0,uniq=0,topKr=0,topName='';
   sec.querySelectorAll('tbody tr').forEach(tr=>{const el=tr.querySelector('.qty');if(!el)return;const q=DB.qty[el.dataset.id]||0;if(q>0){cards+=q;uniq++;const kr=+el.dataset.kr||0;val+=q*kr;if(q>=2)dupes++;if(kr>topKr){topKr=kr;const a=tr.querySelector('.cc-txt a');topName=a?a.textContent:'';}const t=tr.querySelector('.tn');const n=t?parseInt(t.textContent):NaN;if(!isNaN(n)&&base&&n<=base)seen.add(n);}});
@@ -498,7 +507,7 @@ _TABS_JS = '''(function(){
     else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
    });
    const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
-   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
+   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');const thd=document.createElement('thead');thd.innerHTML=ownedHead();tbl.appendChild(thd);tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
    blocks.push(d);
   });
   const wishN=Object.keys(DB.wish).length;const head=document.createElement('div');
@@ -514,7 +523,7 @@ _TABS_JS = '''(function(){
    +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><span class="bkmsg"></span></div>'
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div></div>'
    +'<div class="oview"><button data-v="album">🖼 도감</button><button data-v="list">☰ 목록</button></div>'
-   +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액순</button><button data-s="rarity">⭐ 등급순</button><button data-s="jp">🇯🇵 일본가순</button></div>';
+   +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액</button><button data-s="rarity">⭐ 등급</button><button data-s="jp">🇯🇵 일본가</button><button class="odir" id="odir">⬇ 내림</button><span class="dim" style="font-size:11px">· 목록뷰는 표 머리글 클릭</span></div>';
   opn.appendChild(head);
   if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='6px 2px 14px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);}
   blocks.forEach(b=>opn.appendChild(b));
@@ -522,7 +531,9 @@ _TABS_JS = '''(function(){
   Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
-  opn.querySelectorAll('.osort button').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{ownedSort=b.dataset.s;renderOwned();};});
+  opn.querySelectorAll('.osort button[data-s]').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{if(ownedSort===b.dataset.s)ownedDir=-ownedDir;else{ownedSort=b.dataset.s;ownedDir=(b.dataset.s==='name'?1:-1);}renderOwned();};});
+  const od=opn.querySelector('#odir');if(od){od.textContent=ownedDir>0?'⬆ 오름':'⬇ 내림';od.onclick=()=>{ownedDir=-ownedDir;renderOwned();};}
+  opn.querySelectorAll('.owned-grp thead th[data-k]').forEach(t=>{t.onclick=()=>{const k=t.dataset.k;if(ownedSort===k)ownedDir=-ownedDir;else{ownedSort=k;ownedDir=(k==='name'?1:-1);}renderOwned();};});
   opn.querySelectorAll('.oview button').forEach(b=>{b.classList.toggle('on',b.dataset.v===ownedView);b.onclick=()=>{ownedView=b.dataset.v;renderOwned();};});
  }
  function addBtn(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
@@ -537,11 +548,12 @@ _TABS_JS = '''(function(){
  const lbimg=lb.querySelector('img');
  lb.addEventListener('click',()=>{lb.hidden=true;lbimg.removeAttribute('src');});
  content.addEventListener('click',e=>{const im=e.target.closest('img.tth,img.ath');if(!im)return;lbimg.src=im.src;lb.hidden=false;});
+ const colKey=(tr,i)=>{if(i===1){const a=tr.querySelector('.cc-txt a');return a?a.textContent.trim():'';}if(i===0)return parseInt((tr.children[0].textContent||'').trim())||0;return numOf(tr.children[i].textContent);};
  document.querySelectorAll(".full table").forEach(tb=>{
   const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");
   const rws=[...tbody.querySelectorAll("tr")];let last={i:null,dir:-1};
-  function sort(i){const dir=last.i===i?-last.dir:-1;last={i,dir};rws.sort((a,b)=>(numOf(a.children[i].textContent)-numOf(b.children[i].textContent))*dir);rws.forEach(r=>tbody.appendChild(r));ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});}
-  [2,3].forEach(i=>{const t=ths[i];if(!t)return;t.classList.add("sortable");t.title="클릭: 가격 정렬";t.addEventListener("click",()=>sort(i));});
+  function sort(i){const dir=last.i===i?-last.dir:(i===1?1:-1);last={i,dir};rws.sort((a,b)=>{const ka=colKey(a,i),kb=colKey(b,i);return (typeof ka==='string'?ka.localeCompare(kb,'ko'):ka-kb)*dir;});rws.forEach(r=>tbody.appendChild(r));ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});}
+  ths.forEach((t,i)=>{t.classList.add("sortable");t.title="클릭: 정렬(재클릭=방향)";t.addEventListener("click",()=>sort(i));});
  });
 })();'''
 
