@@ -91,10 +91,17 @@ TOP_KEY = "MUR·UR·SAR"
 
 def _tr(g, show_rarity=False):
     link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
-    chip = (f'<span class="chip sm {RCLASS.get(g["rarity"], "ex")}">{H.escape(g["rarity"] or "-")}</span> '
+    im = g.get("img")
+    imgtag = (f'<img class="tth" src="{H.escape(im)}" loading="lazy" alt=""/>' if im
+              else '<span class="tth noimg">🎴</span>')
+    chip = (f'<span class="chip sm {RCLASS.get(g["rarity"], "ex")}">{H.escape(g["rarity"] or "-")}</span>'
             if show_rarity else "")
+    ck = (f'<input type="checkbox" class="own-ck" data-id="{H.escape(str(g["id"]))}" '
+          f'data-kr="{g["kr"] or 0}" title="보유 체크"/>' if g.get("id") else "")
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
-            f'<td>{chip}<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a></td>'
+            f'<td><div class="cardcell">{ck}{imgtag}<span class="cc-txt">{chip}'
+            f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>'
+            f'</span></div></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
 
 
@@ -114,13 +121,26 @@ def table_html(rows):
         op = " open" if idx == 0 else ""      # 최고 등급 그룹만 기본 펼침
         blocks.append(
             f'<details class="rgrp"{op}><summary><span class="chip sm {rc}">{H.escape(rar)}</span>'
-            f'<span class="rgrp-n">{len(gs)}장</span><span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
+            f'<span class="rgrp-n">{len(gs)}장</span><span class="rgrp-own"></span>'
+            f'<span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
             f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
             f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
             + "".join(_tr(g, merged) for g in gs) + '</tbody></table></div></details>')
     return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}장 · 등급별 '
             f'(MUR·UR·SAR 병합 · 최고 등급 기본 펼침 · 머리글로 가격정렬)</div>'
             + "".join(blocks) + '</div>')
+
+
+def _base_count(rows):
+    from collections import Counter
+    dens = Counter()
+    for g in rows:
+        num = g.get("num", "")
+        if "/" in num:
+            d = num.split("/", 1)[1].strip()
+            if d.isdigit():
+                dens[d] += 1
+    return dens.most_common(1)[0][0] if dens else "?"
 
 
 def build():
@@ -132,16 +152,12 @@ def build():
             allrows = []
         if not allrows:
             continue
-        grid = [g for g in allrows if g["kr"] >= MIN_KR]
-        total = len(grid)
-        grid = grid[:TOPN]
-        table = sorted(allrows, key=lambda x: (RORDER.get(x["rarity"], 9), -(x["kr"] or 0)))
+        base = _base_count(allrows)
         own = '<span class="own-badge">보유</span>' if owned else ""
-        meta = f"밸류 {total}장 · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
-        body = "".join(card_html(g) for g in grid)
+        meta = f"{len(allrows)}장 · 정규 /{base} · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
         secs.append(f'<section class="pack"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
-                    f'</span></div><div class="grid">{body}</div>{table_html(table)}</section>')
+                    f'<span class="own-cnt"></span></span></div>{table_html(allrows)}</section>')
     upd = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     tabs = (f'<script>const DEALS={json.dumps(DEALS, ensure_ascii=False)};'
             f'{_TABS_JS}</script>')
@@ -169,7 +185,8 @@ def health():
 
 
 _HEADER = ('<header class="top"><h1>내 포켓몬 카드 시세판</h1>'
-           '<p class="sub">한국 실거래(콜렉토리) · 일본 비교 · 1시간마다 갱신. 팩을 골라 보세요.</p></header>')
+           '<p class="sub">한국 실거래(콜렉토리) · 일본 비교 · 1시간마다 갱신. 팩을 골라 보세요.</p>'
+           '<p class="own-total"></p></header>')
 
 _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;--line:#ebe8e1;'
         '--text:#1c1e26;--muted:#6b6f7d;--faint:#9a9eac;--gold:#b8860b;--mur:#d1258a;--ur:#b8860b;'
@@ -224,6 +241,10 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         'td{padding:6px 8px;border-bottom:1px solid var(--line)}'
         'td a{color:inherit;text-decoration:none}td a:hover{color:var(--sar)}'
         '.tn,.tp,.tj{font-variant-numeric:tabular-nums}.tp{font-weight:700}.tj{color:var(--faint)}'
+        'td{vertical-align:middle}.cardcell{display:flex;align-items:center;gap:10px}'
+        '.tth{width:40px;height:56px;object-fit:cover;border-radius:5px;background:var(--line);flex:0 0 auto}'
+        '.tth.noimg{display:inline-flex;align-items:center;justify-content:center;font-size:18px;opacity:.5}'
+        '.cc-txt{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}'
         '.note{margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 16px;font-size:13px;color:var(--muted)}.note b{color:var(--text)}'
         'footer{margin-top:22px;color:var(--faint);font-size:12.5px}')
 
@@ -266,7 +287,14 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.tablist button.deal.active{background:var(--gold);color:#1c1e26}'
              '.tablist .sep{height:1px;background:var(--border);margin:8px 6px}'
              '.content{flex:1;min-width:0}.content section.pack{margin-top:0}'
-             'section.pack[hidden],#deals-panel[hidden]{display:none!important}'
+             'section.pack[hidden],#deals-panel[hidden],#owned-panel[hidden]{display:none!important}'
+             '.tablist button.own{color:var(--own)}.tablist button.own.active{background:var(--own);color:#fff}'
+             '.own-ck{width:16px;height:16px;flex:0 0 auto;cursor:pointer;accent-color:var(--own);margin:0}'
+             '.own-cnt{color:var(--own);font-weight:700}.rgrp-own{color:var(--own);font-weight:700;font-size:12px}'
+             '.own-total{color:var(--own);font-weight:800;font-size:12.5px;margin:9px 0 0}'
+             '#owned-panel h2{margin:0 0 2px}#owned-panel .sub2{color:var(--muted);font-size:13px;margin:0 0 16px}'
+             '#owned-panel .dim{color:var(--faint)}.owned-grp{margin:0 0 16px}'
+             '.owned-h{font-size:13.5px;font-weight:800;padding:9px 2px 7px;border-bottom:1px solid var(--line)}'
              '@media(max-width:860px){.wrap{flex-direction:column;gap:14px;padding:24px 16px 60px}'
              '.sidebar{position:static;width:auto;flex:none}.sidebar .brand{margin-bottom:12px}'
              '.tablist{flex-direction:row;flex-wrap:wrap;gap:6px}'
@@ -289,6 +317,10 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
 
 _TABS_JS = '''(function(){
  const won=n=>n==null?"—":"₩"+n.toLocaleString();
+ const numOf=s=>{const d=(s||"").replace(/[^0-9]/g,"");return d?+d:-1;};
+ const OWNKEY="pkm_owned";
+ let owned;try{owned=new Set(JSON.parse(localStorage.getItem(OWNKEY)||"[]"))}catch(e){owned=new Set();}
+ const saveOwned=()=>{try{localStorage.setItem(OWNKEY,JSON.stringify([...owned]))}catch(e){}};
  function renderDeals(){
   const rows=DEALS.rows.map(r=>{
    const price=r.price==null?'<span class="dim">품절/왜곡</span>':won(r.price);
@@ -306,41 +338,65 @@ _TABS_JS = '''(function(){
  const note=wrap.querySelector('.note');
  const footer=wrap.querySelector('footer');
  const dp=document.createElement('div');dp.id='deals-panel';dp.innerHTML=renderDeals();
+ const opn=document.createElement('div');opn.id='owned-panel';
  const side=document.createElement('aside');side.className='sidebar';
  const brand=document.createElement('div');brand.className='brand';
  brand.innerHTML=header?header.innerHTML:'<h1>내 포켓몬 카드 시세판</h1>';
  const nav=document.createElement('nav');nav.className='tablist';
  side.appendChild(brand);side.appendChild(nav);
  const content=document.createElement('main');content.className='content';
- content.appendChild(dp);
+ content.appendChild(dp);content.appendChild(opn);
  packs.forEach(p=>content.appendChild(p));
  if(note)content.appendChild(note);
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
+ const boxes=[...document.querySelectorAll('input.own-ck')];
+ function updateCounts(){
+  let total=0,val=0;
+  packs.forEach(sec=>{
+   let n=0;sec.querySelectorAll('input.own-ck').forEach(b=>{if(b.checked)n++;});
+   total+=n;const el=sec.querySelector('.own-cnt');if(el)el.textContent=n?(' · 보유 '+n):'';
+   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0;gr.querySelectorAll('input.own-ck').forEach(b=>{if(b.checked)gn++;});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gn?('보유 '+gn):'';});
+  });
+  boxes.forEach(b=>{if(b.checked)val+=(+b.dataset.kr||0);});
+  const t=brand.querySelector('.own-total');if(t)t.textContent=total?('🎴 보유 '+total+'장 · 추정 '+won(val)):'';
+ }
+ function renderOwned(){
+  opn.innerHTML='';
+  const head=document.createElement('div');opn.appendChild(head);
+  let total=0,val=0;const blocks=[];
+  packs.forEach(sec=>{
+   const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
+   const checked=[...sec.querySelectorAll('input.own-ck:checked')];
+   if(!checked.length)return;
+   let sub=0;const tb=document.createElement('tbody');
+   checked.forEach(cb=>{const tr=cb.closest('tr');if(!tr)return;const kr=+cb.dataset.kr||0;sub+=kr;total++;val+=kr;const c=tr.cloneNode(true);const x=c.querySelector('input.own-ck');if(x)x.remove();tb.appendChild(c);});
+   const d=document.createElement('div');d.className='owned-grp';
+   d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+checked.length+'장 · '+won(sub)+'</span></div>';
+   const tbl=document.createElement('table');tbl.appendChild(tb);
+   const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);
+   d.appendChild(w);blocks.push(d);
+  });
+  head.innerHTML='<h2>💼 내 보유카드</h2><p class="sub2">총 <b>'+total+'장</b> · 추정 가치 <b>'+won(val)+'</b> <span class="dim">(콜렉토리 한국 실거래 합계)</span></p>';
+  if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='10px 2px';e.textContent='체크한 카드가 없습니다. 각 팩에서 보유 카드를 체크하세요.';opn.appendChild(e);return;}
+  blocks.forEach(b=>opn.appendChild(b));
+ }
+ boxes.forEach(b=>{if(owned.has(b.dataset.id))b.checked=true;b.addEventListener('change',()=>{b.checked?owned.add(b.dataset.id):owned.delete(b.dataset.id);saveOwned();updateCounts();if(!opn.hidden)renderOwned();});});
  const btns=[];
  function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
- function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);packs.forEach((p,j)=>p.hidden=(i!==j+1));try{localStorage.setItem('pkm_tab',i)}catch(e){}}
+ function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);opn.hidden=(i!==1);packs.forEach((p,j)=>p.hidden=(i!==j+2));if(i===1)renderOwned();try{localStorage.setItem('pkm_tab',i)}catch(e){}}
  add('💰 매물·가성비','deal',()=>select(0));
+ add('💼 내 보유카드','own',()=>select(1));
  const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
- packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+1));});
- let start=1;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<=packs.length)start=s;}catch(e){}
+ packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+2));});
+ updateCounts();
+ let start=2;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<packs.length+2)start=s;}catch(e){}
  select(start);
-})();
-(function(){
- // 등급그룹 표 정렬: 🇰🇷한국(2)·🇯🇵일본(3) 가격열 머리글 클릭(기본 내림차순)
- const num=s=>{const d=(s||"").replace(/[^0-9]/g,"");return d?+d:-1;};
- const PRICE_COLS=[2,3];
  document.querySelectorAll(".full table").forEach(tb=>{
   const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");
-  const rows=[...tbody.querySelectorAll("tr")];
-  let last={i:null,dir:-1};
-  function sort(i){
-   const dir=last.i===i?-last.dir:-1;last={i,dir};
-   rows.sort((a,b)=>(num(a.children[i].textContent)-num(b.children[i].textContent))*dir);
-   rows.forEach(r=>tbody.appendChild(r));
-   ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});
-  }
-  PRICE_COLS.forEach(i=>{const t=ths[i];if(!t)return;t.classList.add("sortable");t.title="클릭: 가격 정렬";t.addEventListener("click",()=>sort(i));});
+  const rws=[...tbody.querySelectorAll("tr")];let last={i:null,dir:-1};
+  function sort(i){const dir=last.i===i?-last.dir:-1;last={i,dir};rws.sort((a,b)=>(numOf(a.children[i].textContent)-numOf(b.children[i].textContent))*dir);rws.forEach(r=>tbody.appendChild(r));ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});}
+  [2,3].forEach(i=>{const t=ths[i];if(!t)return;t.classList.add("sortable");t.title="클릭: 가격 정렬";t.addEventListener("click",()=>sort(i));});
  });
 })();'''
 
