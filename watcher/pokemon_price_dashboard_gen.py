@@ -185,8 +185,12 @@ def section(disp, query, owned):
 def main():
     print("콜렉토리+번개장터에서 수집 중...")
     secs = "\n".join(section(*p) for p in PACKS)
+    # 팩별 탭 + 매물·가성비 탭 (JS가 section.pack 을 동적 래핑). 260908 회사 탭 로직 이식.
+    deals_js = "const DEALS=" + json.dumps(DEALS, ensure_ascii=False) + ";"
+    tabs = (f'<style id="tabsfix">{_TABS_CSS}</style>\n'
+            f'<script>\n{deals_js}\n{_TABS_JS}\n</script>')
     html = (f'<title>포켓몬 카드 밸류 시세 (한국·다중소스)</title>\n<style>{_CSS}</style>\n'
-            f'<div class="wrap">\n{_HEADER}\n{secs}\n{_FOOTER}\n</div>')
+            f'<div class="wrap">\n{_HEADER}\n{secs}\n{_FOOTER}\n</div>\n{tabs}')
     OUT.write_text(html, encoding="utf-8")
     print(f"생성 완료: {OUT} ({len(html.encode('utf-8'))//1024}KB, "
           f"이미지 {sum(1 for v in _imgcache.values() if v)}장)")
@@ -252,6 +256,90 @@ td a{color:inherit;text-decoration:none}td a:hover{color:var(--sar)}
 .tn,.tp,.tj{font-variant-numeric:tabular-nums}.tp{font-weight:700}.tj{color:var(--faint)}
 .note{margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 16px;font-size:13px;color:var(--muted)}.note b{color:var(--text)}
 footer{margin-top:22px;color:var(--faint);font-size:12.5px}'''
+
+
+DEALS = {
+    "updated": "2026-09-07 스냅샷",
+    "rows": [
+        {"pack": "스톰에메랄다", "list": 45000, "price": 54870, "malls": 104,
+         "top": "메가레쿠쟈 MUR ~70만 · 가이오가 AR", "ratio": 12.8, "under": False},
+        {"pack": "어비스아이", "list": 45000, "price": 46030, "malls": 132,
+         "top": "메가다크라이 ex MUR ~15만·SAR ~10만", "ratio": 3.3, "under": True},
+        {"pack": "니힐제로", "list": 45000, "price": 43970, "malls": 65,
+         "top": "메가지가르데 ex MUR ~12만+ · 명희의 격려 SAR ~7만", "ratio": 2.7, "under": True},
+        {"pack": "블랙볼트", "list": 40000, "price": 54490, "malls": 63,
+         "top": "제크로무 BWR ~12만+", "ratio": 2.2, "under": False},
+        {"pack": "초전브레이커", "list": 45000, "price": 59490, "malls": 64,
+         "top": "피카츄 ex SAR ~10만 · 자포코일 AR", "ratio": 1.7, "under": False},
+        {"pack": "낙원드래고나", "list": 45000, "price": 46720, "malls": 45,
+         "top": "라티아스 ex SAR ~6.5~7만 (천장 낮음)", "ratio": 1.5, "under": True},
+        {"pack": "포켓몬 카드 151", "list": 50000, "price": None, "malls": 10,
+         "top": "리자몽 ex SAR ~11만", "ratio": None, "under": False,
+         "note": "다나와가 30팩 미집계·20개입 번들만 잡혀 가격 왜곡"},
+        {"pack": "화이트플레어", "list": 40000, "price": 55000, "malls": 15,
+         "top": "레시라무 BWR · 제크로무", "ratio": None, "under": False,
+         "note": "쿠팡 품절유령 제외 후 실가"},
+    ],
+}
+
+_TABS_CSS = '''.tabbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:6px;padding:11px 0 10px;margin:6px 0 18px;background:var(--bg);border-bottom:1px solid var(--border)}
+.tabbar button{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
+.tabbar button:hover{color:var(--text)}
+.tabbar button.active{color:#fff;background:var(--sar);border-color:var(--sar)}
+.tabbar button.deal{color:var(--gold)}
+.tabbar button.deal.active{color:#1c1e26;background:var(--gold);border-color:var(--gold)}
+section.pack[hidden],#deals-panel[hidden]{display:none!important}
+#deals-panel{margin:2px 0 24px}
+#deals-panel h2{margin:0 0 2px}
+#deals-panel .sub2{color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.6}
+#deals-panel .tblwrap{overflow-x:auto}
+#deals-panel table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+#deals-panel th,#deals-panel td{padding:9px 11px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#deals-panel th{color:var(--faint);font-weight:700;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+#deals-panel td.name,#deals-panel th.name{text-align:left;font-weight:800}
+#deals-panel td.top,#deals-panel th.top{text-align:left;color:var(--muted);font-weight:600;white-space:normal}
+#deals-panel tr.under td{background:color-mix(in srgb,var(--own) 13%,transparent)}
+#deals-panel .ratio{font-weight:800;color:var(--gold)}
+#deals-panel .dim{color:var(--faint)}
+#deals-panel .badge{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:var(--own);color:#fff;margin-left:6px}
+#deals-panel .note2{color:var(--faint);font-size:11.5px;margin-top:14px;line-height:1.7}'''
+
+_TABS_JS = '''(function(){
+ const won=n=>n==null?"—":"₩"+n.toLocaleString();
+ function renderDeals(){
+  const rows=DEALS.rows.map(r=>{
+   const price=r.price==null?'<span class="dim">품절/왜곡</span>':won(r.price);
+   const ratio=r.ratio==null?'<span class="dim">—</span>':'<span class="ratio">'+r.ratio+'x</span>';
+   const badge=r.under?'<span class="badge">정가이하</span>':'';
+   const note=r.note?'<div class="dim" style="font-size:11px;margin-top:3px">⚠️ '+r.note+'</div>':'';
+   return '<tr class="'+(r.under?'under':'')+'">'
+     +'<td class="name">'+r.pack+badge+'</td><td>'+won(r.list)+'</td><td>'+price+'</td>'
+     +'<td>'+(r.malls||'—')+'</td><td>'+ratio+'</td><td class="top">'+r.top+note+'</td></tr>';
+  }).join('');
+  return '<h2>💰 매물 · 고점대비 가성비</h2>'
+   +'<p class="sub2">감시기 <b>다나와 실구매가</b>(배송포함, 쿠팡 품절유령 제외) · <b>'+DEALS.updated+'</b><br>'
+   +'<b>배수</b> = 고점카드 천장 ÷ 현재 박스가 = <b>뽑으면 최대 몇 배</b>(확률 미반영). <b>초록=정가 이하 구매 가능</b>.</p>'
+   +'<div class="tblwrap"><table><thead><tr>'
+   +'<th class="name">팩</th><th>정가</th><th>현재 실구매가</th><th>판매처</th><th>배수</th><th class="top">고점 천장 카드</th>'
+   +'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+   +'<div class="note2">· 배수는 확률 미반영 참고치 · 매물 스냅샷은 감시기 기준일. 카드 시세는 각 팩 탭에서 라이브.</div>';
+ }
+ const wrap=document.querySelector('.wrap');
+ const packs=[...wrap.querySelectorAll('section.pack')];
+ if(!packs.length)return;
+ const dp=document.createElement('div');dp.id='deals-panel';dp.innerHTML=renderDeals();
+ const bar=document.createElement('nav');bar.className='tabbar';
+ const btns=[];
+ function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=onclick;bar.appendChild(b);btns.push(b);return b;}
+ function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);packs.forEach((p,j)=>p.hidden=(i!==j+1));try{localStorage.setItem('pkm_tab',i)}catch(e){}}
+ add('💰 매물·가성비','deal',()=>select(0));
+ packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+1));});
+ const firstPack=packs[0];
+ wrap.insertBefore(bar,firstPack);
+ wrap.insertBefore(dp,firstPack);
+ let start=1;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<=packs.length)start=s;}catch(e){}
+ select(start);
+})();'''
 
 
 if __name__ == "__main__":
