@@ -7,6 +7,7 @@
 사용: python pokemon_price_dashboard_gen.py  → 같은 폴더 pokemon_price_dashboard.html
 """
 import base64
+import hashlib
 import io
 import json
 import sys
@@ -109,14 +110,24 @@ _imgcache = {}
 _rawcache = {}
 
 
+_CACHE_DIR = Path(__file__).resolve().parent / ".imgcache"
+
+
 def _raw(url):
-    """원본 바이트 1회만 다운로드(사이즈별 재사용)."""
+    """원본 바이트 1회만 다운로드 → 디스크 캐시(.imgcache). 재생성 시 재다운로드 안 함."""
     if url not in _rawcache:
-        try:
-            _rawcache[url] = _fetch(url, binary=True,
-                                    headers={"Referer": "https://collectory.cc/"})
-        except Exception:
-            _rawcache[url] = None
+        cf = _CACHE_DIR / (hashlib.md5(url.encode()).hexdigest() + ".bin")
+        if cf.is_file():
+            _rawcache[url] = cf.read_bytes()
+        else:
+            try:
+                data = _fetch(url, binary=True,
+                              headers={"Referer": "https://collectory.cc/"})
+                _CACHE_DIR.mkdir(exist_ok=True)
+                cf.write_bytes(data)
+                _rawcache[url] = data
+            except Exception:
+                _rawcache[url] = None
     return _rawcache[url]
 
 
@@ -133,7 +144,7 @@ def thumb(url, box=(150, 210)):
             im = Image.open(io.BytesIO(raw)).convert("RGB")
             im.thumbnail(box)
             buf = io.BytesIO()
-            im.save(buf, format="WEBP", quality=70)
+            im.save(buf, format="WEBP", quality=50)
             uri = "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
         except Exception:
             uri = ""
@@ -167,7 +178,7 @@ TOP_KEY = "MUR·UR·SAR"
 
 def _tr(g, show_rarity=False):
     link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
-    im = thumb(g.get("img"), (64, 90))
+    im = thumb(g.get("img"), (120, 168))      # 행엔 40px로 축소표시, 클릭 라이트박스용
     imgtag = (f'<img class="tth" src="{im}" loading="lazy" alt=""/>' if im
               else '<span class="tth noimg">🎴</span>')
     rar = g.get("rarity") or "-"
@@ -231,7 +242,7 @@ def section(disp, query, owned):
     print(f"  {disp}: {len(rows)}장(정규 /{base}), 최고 ₩{rows[0]['kr']:,}")
     own = '<span class="own-badge">보유</span>' if owned else ""
     meta = f"{len(rows)}장 · 정규 /{base} · 최고 🇰🇷 ₩{rows[0]['kr']:,}"
-    return (f'  <section class="pack"><div class="pack-head"><h2>{H.escape(disp)}</h2>{own}'
+    return (f'  <section class="pack" data-base="{base}"><div class="pack-head"><h2>{H.escape(disp)}</h2>{own}'
             f'<span class="pack-meta">{meta}<span class="own-cnt"></span></span></div>'
             f'{table_html(rows)}</section>')
 
@@ -344,6 +355,14 @@ _TABS_CSS = '''.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displ
 .sidebar .brand{margin:0 0 20px}
 .sidebar .brand h1{font-size:21px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em;font-weight:800}
 .sidebar .brand .sub{font-size:12px;color:var(--muted);margin:0;max-width:none;line-height:1.5}
+.search{width:100%;margin:0 0 14px;padding:8px 11px;font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;outline:none}
+.search:focus{border-color:var(--sar)}
+.search::placeholder{color:var(--faint)}
+.no-res{padding:22px 2px;color:var(--faint);font-size:13.5px}
+.tth{cursor:zoom-in}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;cursor:zoom-out}
+.lb[hidden]{display:none}
+.lb img{width:min(90vw,340px);height:auto;max-height:92vh;border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,.6)}
 .tablist{display:flex;flex-direction:column;gap:2px}
 .tablist button{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);text-align:left;background:transparent;border:0;border-radius:9px;padding:8px 12px;cursor:pointer;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s,color .12s}
 .tablist button:hover{background:var(--surface-2);color:var(--text)}
@@ -434,7 +453,8 @@ _TABS_JS = '''(function(){
  const brand=document.createElement('div');brand.className='brand';
  brand.innerHTML=header?header.innerHTML:'<h1>내 포켓몬 카드 시세판</h1>';
  const nav=document.createElement('nav');nav.className='tablist';
- side.appendChild(brand);side.appendChild(nav);
+ const search=document.createElement('input');search.type='search';search.className='search';search.placeholder='🔍 카드 검색 (이름·번호)';
+ side.appendChild(brand);side.appendChild(search);side.appendChild(nav);
  // 우측 콘텐츠(선택 탭만 노출)
  const content=document.createElement('main');content.className='content';
  content.appendChild(dp);content.appendChild(opn);
@@ -476,16 +496,32 @@ _TABS_JS = '''(function(){
  }
  function setQ(el,q){q=Math.max(0,q|0);if(q)qty[el.dataset.id]=q;else delete qty[el.dataset.id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveQty();updateCounts();if(!opn.hidden)renderOwned();}
  document.querySelectorAll('.qty').forEach(el=>{const q0=qOf(el);el.querySelector('.qn').textContent=q0;el.classList.toggle('has',q0>0);el.querySelector('.qm').addEventListener('click',()=>setQ(el,qOf(el)-1));el.querySelector('.qp').addEventListener('click',()=>setQ(el,qOf(el)+1));});
- const btns=[];
+ const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='검색 결과가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
+ const btns=[];let searching=false,curTab=2;
  function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
- function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);opn.hidden=(i!==1);packs.forEach((p,j)=>p.hidden=(i!==j+2));if(i===1)renderOwned();try{localStorage.setItem('pkm_tab',i)}catch(e){}}
+ function clearFilter(){packs.forEach(sec=>{sec.querySelectorAll('tbody tr').forEach(tr=>{tr.style.display='';});sec.querySelectorAll('.rgrp').forEach((gr,i)=>{gr.style.display='';gr.open=(i===0);});});noRes.hidden=true;}
+ function select(i){if(searching){searching=false;search.value='';clearFilter();}btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);opn.hidden=(i!==1);packs.forEach((p,j)=>p.hidden=(i!==j+2));if(i===1)renderOwned();curTab=i;try{localStorage.setItem('pkm_tab',i)}catch(e){}}
+ function applySearch(){
+  const q=search.value.trim().toLowerCase();
+  if(!q){if(searching){searching=false;clearFilter();select(curTab);}return;}
+  searching=true;dp.hidden=true;opn.hidden=true;btns.forEach(b=>b.classList.remove('active'));
+  let any=false;
+  packs.forEach(sec=>{let packHit=false;sec.querySelectorAll('.rgrp').forEach(gr=>{let grpHit=false;gr.querySelectorAll('tbody tr').forEach(tr=>{const hit=tr.textContent.toLowerCase().indexOf(q)>=0;tr.style.display=hit?'':'none';if(hit)grpHit=true;});gr.open=grpHit;gr.style.display=grpHit?'':'none';if(grpHit)packHit=true;});sec.hidden=!packHit;if(packHit)any=true;});
+  noRes.hidden=any;
+ }
+ search.addEventListener('input',applySearch);
  add('💰 매물·가성비','deal',()=>select(0));
  add('💼 내 보유카드','own',()=>select(1));
  const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
- packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+2));});
+ packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;add(nm.trim()+(bs&&bs!=='?'?(' /'+bs):''),'',()=>select(j+2));});
  updateCounts();
  let start=2;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<packs.length+2)start=s;}catch(e){}
  select(start);
+ // 썸네일 클릭 → 큰 이미지 라이트박스
+ const lb=document.createElement('div');lb.className='lb';lb.hidden=true;lb.innerHTML='<img alt=""/>';document.body.appendChild(lb);
+ const lbimg=lb.querySelector('img');
+ lb.addEventListener('click',()=>{lb.hidden=true;lbimg.removeAttribute('src');});
+ content.addEventListener('click',e=>{const im=e.target.closest('img.tth');if(!im)return;lbimg.src=im.src;lb.hidden=false;});
  // 등급그룹 표 정렬: 🇰🇷한국(2)·🇯🇵일본(3) 가격열 머리글 클릭 토글(기본 내림차순)
  document.querySelectorAll(".full table").forEach(tb=>{
   const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");

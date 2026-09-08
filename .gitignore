@@ -8,3 +8,7 @@ watcher/.env
 watcher/pokemon_deal_watch_state.json
 watcher/pokemon_price_dashboard.html
 watcher/card_watch_state.json
+
+# 이미지 원본 디스크 캐시(재생성 속도용)
+.imgcache/
+watcher/.imgcache/
