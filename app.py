@@ -94,12 +94,15 @@ def _tr(g, show_rarity=False):
     im = g.get("img")
     imgtag = (f'<img class="tth" src="{H.escape(im)}" loading="lazy" alt=""/>' if im
               else '<span class="tth noimg">🎴</span>')
-    chip = (f'<span class="chip sm {RCLASS.get(g["rarity"], "ex")}">{H.escape(g["rarity"] or "-")}</span>'
-            if show_rarity else "")
-    ck = (f'<input type="checkbox" class="own-ck" data-id="{H.escape(str(g["id"]))}" '
-          f'data-kr="{g["kr"] or 0}" title="보유 체크"/>' if g.get("id") else "")
+    rar = g.get("rarity") or "-"
+    tag = f'<span class="rtag {RCLASS.get(rar, "ex")}">[{H.escape(rar)}]</span>'
+    qc = (f'<span class="qty" data-id="{H.escape(str(g["id"]))}" data-kr="{g["kr"] or 0}">'
+          f'<button class="qm" type="button" tabindex="-1">−</button>'
+          f'<b class="qn">0</b>'
+          f'<button class="qp" type="button" tabindex="-1">+</button></span>'
+          if g.get("id") else "")
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
-            f'<td><div class="cardcell">{ck}{imgtag}<span class="cc-txt">{chip}'
+            f'<td><div class="cardcell">{qc}{imgtag}<span class="cc-txt">{tag} '
             f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>'
             f'</span></div></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
@@ -289,7 +292,14 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.content{flex:1;min-width:0}.content section.pack{margin-top:0}'
              'section.pack[hidden],#deals-panel[hidden],#owned-panel[hidden]{display:none!important}'
              '.tablist button.own{color:var(--own)}.tablist button.own.active{background:var(--own);color:#fff}'
-             '.own-ck{width:16px;height:16px;flex:0 0 auto;cursor:pointer;accent-color:var(--own);margin:0}'
+             '.qty{display:inline-flex;align-items:center;flex:0 0 auto;border:1px solid var(--border);border-radius:7px;background:var(--surface);overflow:hidden}'
+             '.qty button{border:0;background:transparent;color:var(--muted);font-size:14px;font-weight:800;width:22px;height:24px;cursor:pointer;line-height:1;padding:0}'
+             '.qty button:hover{background:var(--surface-2);color:var(--text)}'
+             '.qty .qn{min-width:17px;text-align:center;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}'
+             '.qty.has{border-color:var(--own)}.qty.has .qn{color:var(--own)}'
+             '.xq{font-weight:800;color:var(--own);font-size:12.5px;flex:0 0 auto}'
+             '.rtag{font-weight:800;font-size:11px;flex:0 0 auto}'
+             '.rtag.MUR{color:var(--mur)}.rtag.UR{color:var(--ur)}.rtag.SAR{color:var(--sar)}.rtag.AR{color:var(--ar)}.rtag.SR{color:var(--sr)}.rtag.ex{color:var(--ex)}'
              '.own-cnt{color:var(--own);font-weight:700}.rgrp-own{color:var(--own);font-weight:700;font-size:12px}'
              '.own-total{color:var(--own);font-weight:800;font-size:12.5px;margin:9px 0 0}'
              '#owned-panel h2{margin:0 0 2px}#owned-panel .sub2{color:var(--muted);font-size:13px;margin:0 0 16px}'
@@ -318,9 +328,10 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
 _TABS_JS = '''(function(){
  const won=n=>n==null?"—":"₩"+n.toLocaleString();
  const numOf=s=>{const d=(s||"").replace(/[^0-9]/g,"");return d?+d:-1;};
- const OWNKEY="pkm_owned";
- let owned;try{owned=new Set(JSON.parse(localStorage.getItem(OWNKEY)||"[]"))}catch(e){owned=new Set();}
- const saveOwned=()=>{try{localStorage.setItem(OWNKEY,JSON.stringify([...owned]))}catch(e){}};
+ const QKEY="pkm_qty";
+ let qty={};try{const r=localStorage.getItem(QKEY);if(r){qty=JSON.parse(r)||{};}else{const o=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(o))o.forEach(id=>{qty[id]=1;});}}catch(e){qty={};}
+ const saveQty=()=>{try{localStorage.setItem(QKEY,JSON.stringify(qty))}catch(e){}};
+ const qOf=el=>qty[el.dataset.id]||0;
  function renderDeals(){
   const rows=DEALS.rows.map(r=>{
    const price=r.price==null?'<span class="dim">품절/왜곡</span>':won(r.price);
@@ -350,15 +361,15 @@ _TABS_JS = '''(function(){
  if(note)content.appendChild(note);
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
- const boxes=[...document.querySelectorAll('input.own-ck')];
+ // 보유 수량: {id:수량} localStorage, 스텝퍼로 여러장 카운트
  function updateCounts(){
   let total=0,val=0;
   packs.forEach(sec=>{
-   let n=0;sec.querySelectorAll('input.own-ck').forEach(b=>{if(b.checked)n++;});
-   total+=n;const el=sec.querySelector('.own-cnt');if(el)el.textContent=n?(' · 보유 '+n):'';
-   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0;gr.querySelectorAll('input.own-ck').forEach(b=>{if(b.checked)gn++;});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gn?('보유 '+gn):'';});
+   let n=0;sec.querySelectorAll('.qty').forEach(el=>{n+=qOf(el);});
+   total+=n;const e=sec.querySelector('.own-cnt');if(e)e.textContent=n?(' · 보유 '+n+'장'):'';
+   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0;gr.querySelectorAll('.qty').forEach(el=>{gn+=qOf(el);});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gn?('보유 '+gn):'';});
   });
-  boxes.forEach(b=>{if(b.checked)val+=(+b.dataset.kr||0);});
+  document.querySelectorAll('.qty').forEach(el=>{val+=qOf(el)*(+el.dataset.kr||0);});
   const t=brand.querySelector('.own-total');if(t)t.textContent=total?('🎴 보유 '+total+'장 · 추정 '+won(val)):'';
  }
  function renderOwned(){
@@ -367,21 +378,22 @@ _TABS_JS = '''(function(){
   let total=0,val=0;const blocks=[];
   packs.forEach(sec=>{
    const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
-   const checked=[...sec.querySelectorAll('input.own-ck:checked')];
-   if(!checked.length)return;
-   let sub=0;const tb=document.createElement('tbody');
-   checked.forEach(cb=>{const tr=cb.closest('tr');if(!tr)return;const kr=+cb.dataset.kr||0;sub+=kr;total++;val+=kr;const c=tr.cloneNode(true);const x=c.querySelector('input.own-ck');if(x)x.remove();tb.appendChild(c);});
+   const items=[...sec.querySelectorAll('.qty')].filter(el=>qOf(el)>0);
+   if(!items.length)return;
+   let sub=0,cnt=0;const tb=document.createElement('tbody');
+   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=qOf(el),kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;total+=q;val+=q*kr;const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}tb.appendChild(c);});
    const d=document.createElement('div');d.className='owned-grp';
-   d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+checked.length+'장 · '+won(sub)+'</span></div>';
+   d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
    const tbl=document.createElement('table');tbl.appendChild(tb);
    const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);
    d.appendChild(w);blocks.push(d);
   });
-  head.innerHTML='<h2>💼 내 보유카드</h2><p class="sub2">총 <b>'+total+'장</b> · 추정 가치 <b>'+won(val)+'</b> <span class="dim">(콜렉토리 한국 실거래 합계)</span></p>';
-  if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='10px 2px';e.textContent='체크한 카드가 없습니다. 각 팩에서 보유 카드를 체크하세요.';opn.appendChild(e);return;}
+  head.innerHTML='<h2>💼 내 보유카드</h2><p class="sub2">총 <b>'+total+'장</b> · 추정 가치 <b>'+won(val)+'</b> <span class="dim">(수량×한국 실거래 합계)</span></p>';
+  if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='10px 2px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);return;}
   blocks.forEach(b=>opn.appendChild(b));
  }
- boxes.forEach(b=>{if(owned.has(b.dataset.id))b.checked=true;b.addEventListener('change',()=>{b.checked?owned.add(b.dataset.id):owned.delete(b.dataset.id);saveOwned();updateCounts();if(!opn.hidden)renderOwned();});});
+ function setQ(el,q){q=Math.max(0,q|0);if(q)qty[el.dataset.id]=q;else delete qty[el.dataset.id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveQty();updateCounts();if(!opn.hidden)renderOwned();}
+ document.querySelectorAll('.qty').forEach(el=>{const q0=qOf(el);el.querySelector('.qn').textContent=q0;el.classList.toggle('has',q0>0);el.querySelector('.qm').addEventListener('click',()=>setQ(el,qOf(el)-1));el.querySelector('.qp').addEventListener('click',()=>setQ(el,qOf(el)+1));});
  const btns=[];
  function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);opn.hidden=(i!==1);packs.forEach((p,j)=>p.hidden=(i!==j+2));if(i===1)renderOwned();try{localStorage.setItem('pkm_tab',i)}catch(e){}}
