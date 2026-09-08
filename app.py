@@ -69,6 +69,10 @@ def won(v):
     return f"₩{v:,}" if v else "-"
 
 
+def _wcell(v):
+    return f'<span class="wsym">₩</span>{v:,}' if v else '<span class="dim">–</span>'
+
+
 def card_html(g):
     rc = RCLASS.get(g["rarity"], "ex")
     img = g.get("img")
@@ -111,7 +115,7 @@ def _tr(g, show_rarity=False, pack=""):
             f'<td><div class="cardcell">{qc}{wb}{imgtag}<span class="cc-txt">{tag} '
             f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>{eb}{pk}'
             f'</span></div></td>'
-            f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
+            f'<td class="tp">{_wcell(g["kr"])}</td><td class="tj">{_wcell(g.get("jp"))}</td></tr>')
 
 
 def table_html(rows, pack=""):
@@ -129,11 +133,11 @@ def table_html(rows, pack=""):
         rc = "MUR" if merged else RCLASS.get(rar, "ex")
         op = " open" if idx == 0 else ""      # 최고 등급 그룹만 기본 펼침
         blocks.append(
-            f'<details class="rgrp"{op}><summary><span class="chip sm {rc}">{H.escape(rar)}</span>'
+            f'<details class="rgrp"{op}><summary><span class="rr-col"><span class="chip sm {rc}">{H.escape(rar)}</span></span>'
             f'<span class="rgrp-n">{len(gs)}종</span><span class="rgrp-own"></span>'
             f'<span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
             f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
-            f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
+            f'<th class="wcolh">🇰🇷 한국</th><th class="wcolh">🇯🇵 일본</th></tr></thead><tbody>'
             + "".join(_tr(g, merged, pack) for g in gs) + '</tbody></table></div></details>')
     return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}종 · 등급별 '
             f'(MUR·UR·SAR 병합 · 최고 등급 기본 펼침 · 머리글로 가격정렬)</div>'
@@ -163,7 +167,7 @@ def build():
             continue
         base = _base_count(allrows)
         own = '<span class="own-badge">보유</span>' if owned else ""
-        meta = f"{len(allrows)}종 · 정규 /{base} · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
+        meta = f"전체 {len(allrows)}종 · 정규 [{base}] · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
         secs.append(f'<section class="pack" data-base="{base}"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
                     f'<span class="own-cnt"></span></span><div class="pack-prog"></div></div>'
@@ -240,9 +244,9 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         '.rgrp{border-bottom:1px solid var(--line)}.rgrp:last-child{border-bottom:0}'
         '.rgrp>summary{list-style:none;padding:9px 2px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;user-select:none;display:flex;align-items:center;gap:9px}'
         '.rgrp>summary::-webkit-details-marker{display:none}.rgrp>summary:hover{color:var(--sar)}'
-        '.rgrp>summary .chip{min-width:42px;text-align:center;flex:0 0 auto;box-sizing:border-box}'
+        '.rr-col{flex:0 0 104px;display:inline-flex;align-items:center}.rgrp>summary .chip{flex:0 0 auto}'
         '.rgrp-n{color:var(--faint);font-weight:600;font-size:12px;display:inline-block;min-width:46px;flex:0 0 auto}'
-        '.rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px}'
+        '.rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px;min-width:104px;text-align:right;font-variant-numeric:tabular-nums;flex:0 0 auto;white-space:nowrap}'
         '.tblwrap{overflow-x:auto;padding:0 0 10px}'
         'th.sortable{cursor:pointer;user-select:none;white-space:nowrap}th.sortable:hover{color:var(--text)}'
         'th.sorted{color:var(--sar)}th.sorted[data-dir="down"]::after{content:" ▾"}'
@@ -252,6 +256,8 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         'td{padding:6px 8px;border-bottom:1px solid var(--line)}'
         'td a{color:inherit;text-decoration:none}td a:hover{color:var(--sar)}'
         '.tn,.tp,.tj{font-variant-numeric:tabular-nums}.tp{font-weight:700}.tj{color:var(--faint)}'
+        'td.tp,td.tj{text-align:right;white-space:nowrap;min-width:92px}'
+        '.wsym{float:left;font-weight:400;color:var(--faint);opacity:.85}th.wcolh{text-align:right}'
         'td{vertical-align:middle}.cardcell{display:flex;align-items:center;gap:10px}'
         '.tth{width:40px;height:56px;object-fit:cover;border-radius:5px;background:var(--line);flex:0 0 auto}'
         '.tth.noimg{display:inline-flex;align-items:center;justify-content:center;font-size:18px;opacity:.5}'
@@ -283,7 +289,7 @@ DEALS = {
     ],
 }
 
-_TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;display:flex;gap:34px;align-items:flex-start}'
+_TABS_CSS = ('.wrap{max-width:none;margin:0;padding:22px 16px 56px;display:flex;gap:26px;align-items:flex-start}'
              '.sidebar{position:sticky;top:22px;width:214px;flex:0 0 214px}'
              '.sidebar .brand{margin:0 0 20px}'
              '.sidebar .brand h1{font-size:21px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em;font-weight:800}'
@@ -364,7 +370,7 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.rtag{font-weight:800;font-size:11px;flex:0 0 auto}'
              '.rtag.MUR{color:var(--mur)}.rtag.UR{color:var(--ur)}.rtag.SAR{color:var(--sar)}.rtag.AR{color:var(--ar)}.rtag.SR{color:var(--sr)}.rtag.ex{color:var(--ex)}'
              '.own-cnt{color:var(--own);font-weight:700}.rgrp-own{color:var(--own);font-weight:700;font-size:12px}'
-             '.own-total{color:var(--own);font-weight:800;font-size:12.5px;margin:9px 0 0}'
+             '.own-total{color:var(--own);font-weight:600;font-size:12.5px;margin:9px 0 0;line-height:1.5}.own-total b{font-weight:800}'
              '#owned-panel h2{margin:0 0 2px}#owned-panel .sub2{color:var(--muted);font-size:13px;margin:0 0 16px}'
              '#owned-panel .dim{color:var(--faint)}.owned-grp{margin:0 0 16px}'
              '.owned-h{font-size:13.5px;font-weight:800;padding:9px 2px 7px;border-bottom:1px solid var(--line)}'
@@ -456,20 +462,20 @@ _TABS_JS = '''(function(){
   else if(ownedSort==='jp'){ka=cellNum(a,'.tj');kb=cellNum(b,'.tj');}
   else{ka=cellNum(a,'.tp');kb=cellNum(b,'.tp');}
   return (typeof ka==='string'?ka.localeCompare(kb,'ko'):ka-kb)*ownedDir;});}
- function ownedHead(){return '<tr>'+[['num','번호'],['name','카드'],['kr','🇰🇷한국'],['jp','🇯🇵일본']].map(x=>{const on=ownedSort===x[0];return '<th class="sortable'+(on?' sorted':'')+'" data-k="'+x[0]+'"'+(on?' data-dir="'+(ownedDir>0?'up':'down')+'"':'')+'>'+x[1]+'</th>';}).join('')+'</tr>';}
+ function ownedHead(){return '<tr>'+[['num','번호'],['name','카드'],['kr','🇰🇷한국'],['jp','🇯🇵일본']].map(x=>{const on=ownedSort===x[0];const wc=(x[0]==='kr'||x[0]==='jp')?' wcolh':'';return '<th class="sortable'+wc+(on?' sorted':'')+'" data-k="'+x[0]+'"'+(on?' data-dir="'+(ownedDir>0?'up':'down')+'"':'')+'>'+x[1]+'</th>';}).join('')+'</tr>';}
  function packStat(sec){
   const base=parseInt(sec.dataset.base)||0;const seen=new Set();let cards=0,val=0,dupes=0,uniq=0,topKr=0,topName='';
   sec.querySelectorAll('tbody tr').forEach(tr=>{const el=tr.querySelector('.qty');if(!el)return;const q=DB.qty[el.dataset.id]||0;if(q>0){cards+=q;uniq++;const kr=+el.dataset.kr||0;val+=q*kr;if(q>=2)dupes++;if(kr>topKr){topKr=kr;const a=tr.querySelector('.cc-txt a');topName=a?a.textContent:'';}const t=tr.querySelector('.tn');const n=t?parseInt(t.textContent):NaN;if(!isNaN(n)&&base&&n<=base)seen.add(n);}});
   return {base,ownedBase:seen.size,cards,uniq,val,dupes,topKr,topName};
  }
  function updateCounts(){
-  let total=0,val=0;const wishN=Object.keys(DB.wish).length;
-  packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;
+  let total=0,val=0,tu=0;const wishN=Object.keys(DB.wish).length;
+  packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;tu+=st.uniq;
    const e=sec.querySelector('.own-cnt');if(e)e.textContent=st.uniq?(' · 보유 '+st.uniq+'종 '+st.cards+'장'):'';
    const pg=sec.querySelector('.pack-prog');if(pg)pg.innerHTML=st.base?('<span class="pbar"><i style="width:'+pct(st.ownedBase,st.base)+'%"></i></span> 정규 '+st.ownedBase+'/'+st.base+' ('+pct(st.ownedBase,st.base)+'%)'):'';
    sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0,gu=0;gr.querySelectorAll('.qty').forEach(el=>{const q=DB.qty[el.dataset.id]||0;if(q>0){gn+=q;gu++;}});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gu?('보유 '+gu+'종 '+gn+'장'):'';});
   });
-  const t=brand.querySelector('.own-total');if(t)t.textContent=(total||wishN)?('🎴 보유 '+total+'장 · 추정 '+won(val)+(wishN?(' · ★'+wishN):'')):'';
+  const t=brand.querySelector('.own-total');if(t)t.innerHTML=(total||wishN)?('<b>🎴 보유 '+tu+'종 '+total+'장</b><br>추정 '+won(val)+(wishN?' · ★'+wishN:'')):'';
   chips['wish'].textContent='★위시'+(wishN?(' '+wishN):'');
  }
  function rowVisible(tr){const el=tr.querySelector('.qty');const id=el?el.dataset.id:'';const q=DB.qty[id]||0;const w=!!DB.wish[id];
