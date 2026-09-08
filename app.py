@@ -101,8 +101,10 @@ def _tr(g, show_rarity=False):
           f'<b class="qn">0</b>'
           f'<button class="qp" type="button" tabindex="-1">+</button></span>'
           if g.get("id") else "")
+    wb = (f'<button class="wish" data-id="{H.escape(str(g["id"]))}" title="위시리스트" tabindex="-1">★</button>'
+          if g.get("id") else "")
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
-            f'<td><div class="cardcell">{qc}{imgtag}<span class="cc-txt">{tag} '
+            f'<td><div class="cardcell">{qc}{wb}{imgtag}<span class="cc-txt">{tag} '
             f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>'
             f'</span></div></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
@@ -160,7 +162,8 @@ def build():
         meta = f"{len(allrows)}장 · 정규 /{base} · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
         secs.append(f'<section class="pack" data-base="{base}"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
-                    f'<span class="own-cnt"></span></span></div>{table_html(allrows)}</section>')
+                    f'<span class="own-cnt"></span></span><div class="pack-prog"></div></div>'
+                    f'{table_html(allrows)}</section>')
     upd = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     tabs = (f'<script>const DEALS={json.dumps(DEALS, ensure_ascii=False)};'
             f'{_TABS_JS}</script>')
@@ -283,6 +286,26 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.search{width:100%;margin:0 0 14px;padding:8px 11px;font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:9px;outline:none}'
              '.search:focus{border-color:var(--sar)}.search::placeholder{color:var(--faint)}'
              '.no-res{padding:22px 2px;color:var(--faint);font-size:13.5px}'
+             '.filters{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 14px}'
+             '.chip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 10px;cursor:pointer}'
+             '.chip:hover{color:var(--text)}.chip.on{background:var(--sar);color:#fff;border-color:var(--sar)}'
+             '.wish{border:0;background:transparent;color:var(--faint);font-size:15px;line-height:1;cursor:pointer;flex:0 0 auto;padding:0 1px}'
+             '.wish:hover{color:var(--gold)}.wish.on{color:var(--gold)}'
+             '.pack-prog{flex-basis:100%;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600;margin-top:6px}'
+             '.pbar{display:inline-block;width:130px;height:7px;border-radius:4px;background:var(--surface);overflow:hidden;flex:0 0 auto;border:1px solid var(--border)}'
+             '.pbar i{display:block;height:100%;background:var(--own)}'
+             '.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:8px 0 16px}'
+             '.st{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}'
+             '.st b{display:block;font-size:16px;font-weight:800}.st span{font-size:11px;color:var(--muted)}'
+             '.backup{margin:18px 0 8px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px}'
+             '.backup>b{font-size:13px}'
+             '.bkrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}'
+             '.bkrow button{font:inherit;font-size:12px;font-weight:700;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 11px;cursor:pointer}'
+             '.bkrow button:hover{border-color:var(--own)}.bkmsg{font-size:12px;color:var(--own);font-weight:700}'
+             '.bkpaste{margin-top:8px;display:flex;gap:6px}'
+             '.bkpaste textarea{flex:1;height:54px;font:inherit;font-size:11px;padding:7px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);resize:vertical}'
+             '.bkpaste button{align-self:flex-start;font:inherit;font-size:12px;font-weight:700;padding:6px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer}'
+             '.bknote{font-size:11px;margin:10px 0 0;line-height:1.6}'
              '.tth{cursor:zoom-in}'
              '.lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;cursor:zoom-out}'
              '.lb[hidden]{display:none}'
@@ -335,10 +358,12 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
 _TABS_JS = '''(function(){
  const won=n=>n==null?"—":"₩"+n.toLocaleString();
  const numOf=s=>{const d=(s||"").replace(/[^0-9]/g,"");return d?+d:-1;};
- const QKEY="pkm_qty";
- let qty={};try{const r=localStorage.getItem(QKEY);if(r){qty=JSON.parse(r)||{};}else{const o=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(o))o.forEach(id=>{qty[id]=1;});}}catch(e){qty={};}
- const saveQty=()=>{try{localStorage.setItem(QKEY,JSON.stringify(qty))}catch(e){}};
- const qOf=el=>qty[el.dataset.id]||0;
+ const DBKEY="pkm_db";
+ let DB;try{DB=JSON.parse(localStorage.getItem(DBKEY)||"null");}catch(e){DB=null;}
+ if(!DB||typeof DB!=="object"){DB={qty:{},wish:{}};try{const oq=JSON.parse(localStorage.getItem("pkm_qty")||"null");if(oq&&typeof oq==="object")DB.qty=oq;else{const oo=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(oo))oo.forEach(id=>{DB.qty[id]=1;});}}catch(e){}}
+ DB.qty=DB.qty||{};DB.wish=DB.wish||{};
+ const saveDB=()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}};
+ const qOf=el=>DB.qty[el.dataset.id]||0;
  function renderDeals(){
   const rows=DEALS.rows.map(r=>{
    const price=r.price==null?'<span class="dim">품절/왜곡</span>':won(r.price);
@@ -362,67 +387,107 @@ _TABS_JS = '''(function(){
  brand.innerHTML=header?header.innerHTML:'<h1>내 포켓몬 카드 시세판</h1>';
  const nav=document.createElement('nav');nav.className='tablist';
  const search=document.createElement('input');search.type='search';search.className='search';search.placeholder='🔍 카드 검색 (이름·번호)';
- side.appendChild(brand);side.appendChild(search);side.appendChild(nav);
+ const filters=document.createElement('div');filters.className='filters';
+ const FIL=[['all','전체'],['own','보유'],['miss','미보유'],['dupe','여분2+'],['wish','★위시']];
+ const chips={};let filterMode='all';
+ FIL.forEach(([k,lbl])=>{const c=document.createElement('button');c.className='chip'+(k==='all'?' on':'');c.textContent=lbl;c.onclick=()=>{filterMode=k;refresh();};filters.appendChild(c);chips[k]=c;});
+ side.appendChild(brand);side.appendChild(search);side.appendChild(filters);side.appendChild(nav);
  const content=document.createElement('main');content.className='content';
  content.appendChild(dp);content.appendChild(opn);
  packs.forEach(p=>content.appendChild(p));
  if(note)content.appendChild(note);
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
- // 보유 수량: {id:수량} localStorage, 스텝퍼로 여러장 카운트
- function updateCounts(){
-  let total=0,val=0;
-  packs.forEach(sec=>{
-   let n=0;sec.querySelectorAll('.qty').forEach(el=>{n+=qOf(el);});
-   total+=n;const e=sec.querySelector('.own-cnt');if(e)e.textContent=n?(' · 보유 '+n+'장'):'';
-   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0;gr.querySelectorAll('.qty').forEach(el=>{gn+=qOf(el);});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gn?('보유 '+gn):'';});
-  });
-  document.querySelectorAll('.qty').forEach(el=>{val+=qOf(el)*(+el.dataset.kr||0);});
-  const t=brand.querySelector('.own-total');if(t)t.textContent=total?('🎴 보유 '+total+'장 · 추정 '+won(val)):'';
+ const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='해당하는 카드가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
+ let searchQ='',curTab=2;const btns=[];
+ const pct=(a,b)=>b?Math.round(a/b*100):0;
+ function packStat(sec){
+  const base=parseInt(sec.dataset.base)||0;const seen=new Set();let cards=0,val=0,dupes=0,uniq=0,topKr=0,topName='';
+  sec.querySelectorAll('tbody tr').forEach(tr=>{const el=tr.querySelector('.qty');if(!el)return;const q=DB.qty[el.dataset.id]||0;if(q>0){cards+=q;uniq++;const kr=+el.dataset.kr||0;val+=q*kr;if(q>=2)dupes++;if(kr>topKr){topKr=kr;const a=tr.querySelector('.cc-txt a');topName=a?a.textContent:'';}const t=tr.querySelector('.tn');const n=t?parseInt(t.textContent):NaN;if(!isNaN(n)&&base&&n<=base)seen.add(n);}});
+  return {base,ownedBase:seen.size,cards,uniq,val,dupes,topKr,topName};
  }
+ function updateCounts(){
+  let total=0,val=0;const wishN=Object.keys(DB.wish).length;
+  packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;
+   const e=sec.querySelector('.own-cnt');if(e)e.textContent=st.cards?(' · 보유 '+st.cards+'장'):'';
+   const pg=sec.querySelector('.pack-prog');if(pg)pg.innerHTML=st.base?('<span class="pbar"><i style="width:'+pct(st.ownedBase,st.base)+'%"></i></span> 정규 '+st.ownedBase+'/'+st.base+' ('+pct(st.ownedBase,st.base)+'%)'):'';
+   sec.querySelectorAll('.rgrp').forEach(gr=>{let gn=0;gr.querySelectorAll('.qty').forEach(el=>{gn+=DB.qty[el.dataset.id]||0;});const s=gr.querySelector('.rgrp-own');if(s)s.textContent=gn?('보유 '+gn):'';});
+  });
+  const t=brand.querySelector('.own-total');if(t)t.textContent=(total||wishN)?('🎴 보유 '+total+'장 · 추정 '+won(val)+(wishN?(' · ★'+wishN):'')):'';
+  chips['wish'].textContent='★위시'+(wishN?(' '+wishN):'');
+ }
+ function rowVisible(tr){const el=tr.querySelector('.qty');const id=el?el.dataset.id:'';const q=DB.qty[id]||0;const w=!!DB.wish[id];
+  if(filterMode==='own'&&!(q>0))return false;if(filterMode==='miss'&&!(q<=0))return false;if(filterMode==='dupe'&&!(q>=2))return false;if(filterMode==='wish'&&!w)return false;
+  if(searchQ&&tr.textContent.toLowerCase().indexOf(searchQ)<0)return false;return true;}
+ function syncChips(){FIL.forEach(([k])=>chips[k].classList.toggle('on',k===filterMode));}
+ function refresh(){
+  const query=!!searchQ||filterMode!=='all';
+  if(query){
+   dp.hidden=true;opn.hidden=true;btns.forEach(b=>b.classList.remove('active'));
+   let any=false;
+   packs.forEach(sec=>{let ph=false;sec.querySelectorAll('.rgrp').forEach(gr=>{let gh=false;gr.querySelectorAll('tbody tr').forEach(tr=>{const v=rowVisible(tr);tr.style.display=v?'':'none';if(v)gh=true;});gr.style.display=gh?'':'none';gr.open=gh;if(gh)ph=true;});sec.hidden=!ph;if(ph)any=true;});
+   noRes.hidden=any;
+  }else{
+   packs.forEach(sec=>{sec.querySelectorAll('tbody tr').forEach(tr=>tr.style.display='');sec.querySelectorAll('.rgrp').forEach((gr,i)=>{gr.style.display='';gr.open=(i===0);});});
+   noRes.hidden=true;dp.hidden=(curTab!==0);opn.hidden=(curTab!==1);packs.forEach((p,j)=>p.hidden=(curTab!==j+2));btns.forEach((b,j)=>b.classList.toggle('active',j===curTab));if(curTab===1)renderOwned();
+  }
+  syncChips();
+ }
+ function select(i){searchQ='';search.value='';filterMode='all';curTab=i;refresh();try{localStorage.setItem('pkm_tab',i)}catch(e){}}
+ search.addEventListener('input',()=>{searchQ=search.value.trim().toLowerCase();refresh();});
+ function setQ(el,q){q=Math.max(0,q|0);const id=el.dataset.id;if(q)DB.qty[id]=q;else delete DB.qty[id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveDB();updateCounts();if(!opn.hidden)renderOwned();if(filterMode!=='all')refresh();}
+ document.querySelectorAll('.qty').forEach(el=>{const q0=qOf(el);el.querySelector('.qn').textContent=q0;el.classList.toggle('has',q0>0);el.querySelector('.qm').addEventListener('click',()=>setQ(el,qOf(el)-1));el.querySelector('.qp').addEventListener('click',()=>setQ(el,qOf(el)+1));});
+ document.querySelectorAll('.wish').forEach(b=>{const id=b.dataset.id;if(DB.wish[id])b.classList.add('on');b.addEventListener('click',()=>{if(DB.wish[id]){delete DB.wish[id];b.classList.remove('on');}else{DB.wish[id]=1;b.classList.add('on');}saveDB();updateCounts();if(filterMode==='wish')refresh();});});
+ function bkMsg(m){const s=opn.querySelector('.bkmsg');if(s){s.textContent=m;setTimeout(()=>{if(s)s.textContent='';},2500);}}
+ function syncUI(){updateCounts();document.querySelectorAll('.qty').forEach(el=>{const v=DB.qty[el.dataset.id]||0;el.querySelector('.qn').textContent=v;el.classList.toggle('has',v>0);});document.querySelectorAll('.wish').forEach(b=>b.classList.toggle('on',!!DB.wish[b.dataset.id]));}
+ function mergeIn(obj){if(!obj||typeof obj!=='object')return false;const q=obj.qty||{},w=obj.wish||{};Object.keys(q).forEach(id=>{const v=Math.max(DB.qty[id]||0,+q[id]||0);if(v)DB.qty[id]=v;});Object.keys(w).forEach(id=>{if(w[id])DB.wish[id]=1;});saveDB();return true;}
  function renderOwned(){
   opn.innerHTML='';
-  const head=document.createElement('div');opn.appendChild(head);
-  let total=0,val=0;const blocks=[];
-  packs.forEach(sec=>{
-   const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
-   const items=[...sec.querySelectorAll('.qty')].filter(el=>qOf(el)>0);
+  let total=0,val=0,uniq=0,dupes=0,ownedBase=0,base=0,topKr=0,topName='';const blocks=[];
+  packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;uniq+=st.uniq;dupes+=st.dupes;ownedBase+=st.ownedBase;base+=st.base;if(st.topKr>topKr){topKr=st.topKr;topName=st.topName;}
+   const items=[...sec.querySelectorAll('.qty')].filter(el=>(DB.qty[el.dataset.id]||0)>0);
    if(!items.length)return;
+   const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
    let sub=0,cnt=0;const tb=document.createElement('tbody');
-   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=qOf(el),kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;total+=q;val+=q*kr;const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}tb.appendChild(c);});
-   const d=document.createElement('div');d.className='owned-grp';
-   d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
-   const tbl=document.createElement('table');tbl.appendChild(tb);
-   const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);
-   d.appendChild(w);blocks.push(d);
+   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();tb.appendChild(c);});
+   const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
+   const tbl=document.createElement('table');tbl.appendChild(tb);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);blocks.push(d);
   });
-  head.innerHTML='<h2>💼 내 보유카드</h2><p class="sub2">총 <b>'+total+'장</b> · 추정 가치 <b>'+won(val)+'</b> <span class="dim">(수량×한국 실거래 합계)</span></p>';
-  if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='10px 2px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);return;}
+  const wishN=Object.keys(DB.wish).length;const head=document.createElement('div');
+  head.innerHTML='<h2>💼 내 보유카드</h2>'
+   +'<div class="stats"><div class="st"><b>'+total+'</b><span>총 장수</span></div>'
+   +'<div class="st"><b>'+uniq+'</b><span>고유 종수</span></div>'
+   +'<div class="st"><b>'+won(val)+'</b><span>추정 가치</span></div>'
+   +'<div class="st"><b>'+ownedBase+'/'+base+'</b><span>정규 완성 '+pct(ownedBase,base)+'%</span></div>'
+   +'<div class="st"><b>'+dupes+'</b><span>여분 종(2+)</span></div>'
+   +'<div class="st"><b>'+wishN+'</b><span>★ 위시</span></div></div>'
+   +(topName?'<p class="sub2">최고가 보유: <b>'+topName+'</b> '+won(topKr)+'</p>':'')
+   +'<div class="backup"><b>💾 백업 (데이터 보호)</b><div class="bkrow">'
+   +'<button id="bkExp">⬇ 파일로 저장</button><button id="bkImp">⬆ 파일 불러오기</button>'
+   +'<button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 코드 붙여넣기</button>'
+   +'<span class="bkmsg"></span></div>'
+   +'<div class="bkpaste" hidden><textarea placeholder="복사한 백업 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div>'
+   +'<input type="file" id="bkFile" accept="application/json" hidden>'
+   +'<p class="bknote dim">⚠️ 기록은 이 브라우저에만 저장됩니다(Artifact·Render 각각 별도, 캐시 삭제 시 소멸). 다른 기기로 옮기거나 안전 보관하려면 <b>주기적으로 파일로 저장</b>하세요.</p></div>';
+  opn.appendChild(head);
+  if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='6px 2px 14px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);}
   blocks.forEach(b=>opn.appendChild(b));
+  const Q=s=>opn.querySelector(s);
+  Q('#bkExp').onclick=()=>{const blob=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);const d=new Date();a.download='pokemon-collection-'+d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);bkMsg('저장됨');};
+  Q('#bkImp').onclick=()=>Q('#bkFile').click();
+  Q('#bkFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{if(mergeIn(JSON.parse(rd.result))){syncUI();renderOwned();bkMsg('불러옴(병합)');}}catch(err){bkMsg('파일 오류');}};rd.readAsText(f);};
+  Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
+  Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
+  Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
  }
- function setQ(el,q){q=Math.max(0,q|0);if(q)qty[el.dataset.id]=q;else delete qty[el.dataset.id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveQty();updateCounts();if(!opn.hidden)renderOwned();}
- document.querySelectorAll('.qty').forEach(el=>{const q0=qOf(el);el.querySelector('.qn').textContent=q0;el.classList.toggle('has',q0>0);el.querySelector('.qm').addEventListener('click',()=>setQ(el,qOf(el)-1));el.querySelector('.qp').addEventListener('click',()=>setQ(el,qOf(el)+1));});
- const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='검색 결과가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
- const btns=[];let searching=false,curTab=2;
- function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
- function clearFilter(){packs.forEach(sec=>{sec.querySelectorAll('tbody tr').forEach(tr=>{tr.style.display='';});sec.querySelectorAll('.rgrp').forEach((gr,i)=>{gr.style.display='';gr.open=(i===0);});});noRes.hidden=true;}
- function select(i){if(searching){searching=false;search.value='';clearFilter();}btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);opn.hidden=(i!==1);packs.forEach((p,j)=>p.hidden=(i!==j+2));if(i===1)renderOwned();curTab=i;try{localStorage.setItem('pkm_tab',i)}catch(e){}}
- function applySearch(){
-  const q=search.value.trim().toLowerCase();
-  if(!q){if(searching){searching=false;clearFilter();select(curTab);}return;}
-  searching=true;dp.hidden=true;opn.hidden=true;btns.forEach(b=>b.classList.remove('active'));
-  let any=false;
-  packs.forEach(sec=>{let packHit=false;sec.querySelectorAll('.rgrp').forEach(gr=>{let grpHit=false;gr.querySelectorAll('tbody tr').forEach(tr=>{const hit=tr.textContent.toLowerCase().indexOf(q)>=0;tr.style.display=hit?'':'none';if(hit)grpHit=true;});gr.open=grpHit;gr.style.display=grpHit?'':'none';if(grpHit)packHit=true;});sec.hidden=!packHit;if(packHit)any=true;});
-  noRes.hidden=any;
- }
- search.addEventListener('input',applySearch);
- add('💰 매물·가성비','deal',()=>select(0));
- add('💼 내 보유카드','own',()=>select(1));
+ function addBtn(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
+ addBtn('💰 매물·가성비','deal',()=>select(0));
+ addBtn('💼 내 보유카드','own',()=>select(1));
  const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
- packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;add(nm.trim()+(bs&&bs!=='?'?(' /'+bs):''),'',()=>select(j+2));});
+ packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;addBtn(nm.trim()+(bs&&bs!=='?'?(' /'+bs):''),'',()=>select(j+2));});
  updateCounts();
  let start=2;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<packs.length+2)start=s;}catch(e){}
- select(start);
+ curTab=start;refresh();
  const lb=document.createElement('div');lb.className='lb';lb.hidden=true;lb.innerHTML='<img alt=""/>';document.body.appendChild(lb);
  const lbimg=lb.querySelector('img');
  lb.addEventListener('click',()=>{lb.hidden=true;lbimg.removeAttribute('src');});
