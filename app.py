@@ -85,22 +85,31 @@ def card_html(g):
             f'</div>{cmp}</div></a>')
 
 
-def table_html(rows):
-    trs = []
-    for g in rows:
-        rc = RCLASS.get(g["rarity"], "ex")
-        link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
-        trs.append(
-            f'<tr><td><span class="chip sm {rc}">{H.escape(g["rarity"] or "-")}</span></td>'
-            f'<td class="tn">{H.escape(g["num"])}</td>'
+def _tr(g):
+    link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
+    return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
             f'<td><a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a></td>'
-            f'<td class="tp">{won(g["kr"])}</td>'
-            f'<td class="tj">{won(g.get("jp"))}</td></tr>')
-    return ('<details class="full"><summary>전체 카드 시세 펼치기 ('
-            + str(len(rows)) + '장, 홀로·커먼까지)</summary>'
-            '<div class="tblwrap"><table><thead><tr><th>등급</th><th>번호</th>'
-            '<th>카드</th><th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
-            + "".join(trs) + "</tbody></table></div></details>")
+            f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
+
+
+def table_html(rows):
+    """등급별 접이식 그룹(RORDER 순). SAR만 기본 펼침, 각 그룹은 가격순."""
+    groups = {}
+    for g in rows:
+        groups.setdefault(g["rarity"] or "-", []).append(g)
+    blocks = []
+    for rar, gs in sorted(groups.items(), key=lambda kv: (RORDER.get(kv[0], 9), kv[0])):
+        gs.sort(key=lambda x: -(x["kr"] or 0))
+        rc = RCLASS.get(rar, "ex")
+        op = " open" if rar == "SAR" else ""
+        blocks.append(
+            f'<details class="rgrp"{op}><summary><span class="chip sm {rc}">{H.escape(rar)}</span>'
+            f'<span class="rgrp-n">{len(gs)}장</span><span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
+            f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
+            f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
+            + "".join(_tr(g) for g in gs) + '</tbody></table></div></details>')
+    return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}장 · 등급별 '
+            f'(SAR 기본 펼침 · 그룹 열고 머리글로 가격정렬)</div>' + "".join(blocks) + '</div>')
 
 
 def build():
@@ -188,10 +197,17 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         '.price{font-size:15.5px;font-weight:800;font-variant-numeric:tabular-nums}.price.top{color:var(--gold)}'
         '.cmp{font-size:11px;color:var(--faint)}'
         '.chip.sm{font-size:9.5px;padding:0 5px}'
-        '.full{border-top:1px solid var(--line)}'
-        '.full summary{padding:12px 20px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}'
-        '.full summary:hover{color:var(--text)}'
-        '.tblwrap{overflow-x:auto;padding:0 20px 18px}'
+        '.full{border-top:1px solid var(--line);padding:2px 20px 14px}'
+        '.full-hd{font-size:12.5px;font-weight:700;color:var(--muted);padding:11px 0 3px}'
+        '.rgrp{border-bottom:1px solid var(--line)}.rgrp:last-child{border-bottom:0}'
+        '.rgrp>summary{list-style:none;padding:9px 2px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;user-select:none;display:flex;align-items:center;gap:9px}'
+        '.rgrp>summary::-webkit-details-marker{display:none}.rgrp>summary:hover{color:var(--sar)}'
+        '.rgrp-n{color:var(--faint);font-weight:600;font-size:12px}'
+        '.rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px}'
+        '.tblwrap{overflow-x:auto;padding:0 0 10px}'
+        '.full th.sortable{cursor:pointer;user-select:none}.full th.sortable:hover{color:var(--text)}'
+        '.full th.sorted{color:var(--sar)}.full th.sorted[data-dir="down"]::after{content:" ▾"}'
+        '.full th.sorted[data-dir="up"]::after{content:" ▴"}'
         'table{width:100%;border-collapse:collapse;font-size:12.5px}'
         'th{text-align:left;color:var(--faint);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}'
         'td{padding:6px 8px;border-bottom:1px solid var(--line)}'
@@ -298,6 +314,23 @@ _TABS_JS = '''(function(){
  packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+1));});
  let start=1;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<=packs.length)start=s;}catch(e){}
  select(start);
+})();
+(function(){
+ // 등급그룹 표 정렬: 🇰🇷한국(2)·🇯🇵일본(3) 가격열 머리글 클릭(기본 내림차순)
+ const num=s=>{const d=(s||"").replace(/[^0-9]/g,"");return d?+d:-1;};
+ const PRICE_COLS=[2,3];
+ document.querySelectorAll(".full table").forEach(tb=>{
+  const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");
+  const rows=[...tbody.querySelectorAll("tr")];
+  let last={i:null,dir:-1};
+  function sort(i){
+   const dir=last.i===i?-last.dir:-1;last={i,dir};
+   rows.sort((a,b)=>(num(a.children[i].textContent)-num(b.children[i].textContent))*dir);
+   rows.forEach(r=>tbody.appendChild(r));
+   ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});
+  }
+  PRICE_COLS.forEach(i=>{const t=ths[i];if(!t)return;t.classList.add("sortable");t.title="클릭: 가격 정렬";t.addEventListener("click",()=>sort(i));});
+ });
 })();'''
 
 
