@@ -130,12 +130,12 @@ def table_html(rows, pack=""):
         op = " open" if idx == 0 else ""      # 최고 등급 그룹만 기본 펼침
         blocks.append(
             f'<details class="rgrp"{op}><summary><span class="chip sm {rc}">{H.escape(rar)}</span>'
-            f'<span class="rgrp-n">{len(gs)}장</span><span class="rgrp-own"></span>'
+            f'<span class="rgrp-n">{len(gs)}종</span><span class="rgrp-own"></span>'
             f'<span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
             f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
             f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
             + "".join(_tr(g, merged, pack) for g in gs) + '</tbody></table></div></details>')
-    return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}장 · 등급별 '
+    return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}종 · 등급별 '
             f'(MUR·UR·SAR 병합 · 최고 등급 기본 펼침 · 머리글로 가격정렬)</div>'
             + "".join(blocks) + '</div>')
 
@@ -163,7 +163,7 @@ def build():
             continue
         base = _base_count(allrows)
         own = '<span class="own-badge">보유</span>' if owned else ""
-        meta = f"{len(allrows)}장 · 정규 /{base} · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
+        meta = f"{len(allrows)}종 · 정규 /{base} · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
         secs.append(f'<section class="pack" data-base="{base}"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
                     f'<span class="own-cnt"></span></span><div class="pack-prog"></div></div>'
