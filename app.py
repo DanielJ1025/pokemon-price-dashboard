@@ -318,6 +318,20 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.osort>span{font-size:11.5px;color:var(--faint);font-weight:700;margin-right:2px}'
              '.osort button{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer}'
              '.osort button:hover{color:var(--text)}.osort button.on{background:var(--sar);color:#fff;border-color:var(--sar)}'
+             '.oview{display:flex;gap:6px;margin:0 0 12px}'
+             '.oview button{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 12px;cursor:pointer}'
+             '.oview button:hover{color:var(--text)}.oview button.on{background:var(--own);color:#fff;border-color:var(--own)}'
+             '.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;padding:4px 0 2px}'
+             '.acard{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}'
+             '.ath{width:100%;aspect-ratio:5/7;object-fit:cover;display:block;background:var(--line);cursor:zoom-in}'
+             '.ath.noimg{display:flex;align-items:center;justify-content:center;font-size:34px;opacity:.5}'
+             '.ainfo{padding:8px 10px 10px;display:flex;flex-direction:column;gap:3px}'
+             '.atop{display:flex;align-items:center;justify-content:space-between;gap:6px}'
+             '.aq{font-size:12px;font-weight:800;color:var(--own)}'
+             '.aname{font-size:12.5px;font-weight:700;line-height:1.25;min-height:2.4em}'
+             '.aname a{color:inherit;text-decoration:none}.aname a:hover{color:var(--sar)}'
+             '.aprice{font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums}'
+             '.anum{font-size:10.5px;color:var(--faint);font-weight:600;margin-left:5px}'
              '.tth{cursor:zoom-in}'
              '.lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;cursor:zoom-out}'
              '.lb[hidden]{display:none}'
@@ -421,7 +435,7 @@ _TABS_JS = '''(function(){
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
  const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='해당하는 카드가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
- let searchQ='',curTab=2,ownedSort='kr';const btns=[];
+ let searchQ='',curTab=2,ownedSort='kr',ownedView='album';const btns=[];
  const pct=(a,b)=>b?Math.round(a/b*100):0;
  const RANK={MUR:0,HR:0,UR:1,SAR:2,SR:3,AR:4,RR:5,R:6,ACE:7,U:8,C:9};
  const rrank=tr=>{const t=tr.querySelector('.rtag');const r=t?t.textContent.replace(/[\\[\\]]/g,'').trim():'';return RANK[r]==null?10:RANK[r];};
@@ -477,10 +491,15 @@ _TABS_JS = '''(function(){
    if(!items.length)return;
    sortItems(items);
    const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
-   let sub=0,cnt=0;const tb=document.createElement('tbody');
-   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();tb.appendChild(c);});
+   let sub=0,cnt=0;const alb=ownedView==='album';
+   const body=alb?document.createElement('div'):document.createElement('tbody');if(alb)body.className='agrid';
+   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;
+    if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div></div>';body.appendChild(tile);}
+    else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
+   });
    const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+pack+' <span class="dim">'+cnt+'장 · '+won(sub)+'</span></div>';
-   const tbl=document.createElement('table');tbl.appendChild(tb);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);blocks.push(d);
+   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
+   blocks.push(d);
   });
   const wishN=Object.keys(DB.wish).length;const head=document.createElement('div');
   head.innerHTML='<h2>💼 내 보유카드</h2>'
@@ -498,6 +517,7 @@ _TABS_JS = '''(function(){
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 백업 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div>'
    +'<input type="file" id="bkFile" accept="application/json" hidden>'
    +'<p class="bknote dim">⚠️ 기록은 이 브라우저에만 저장됩니다(Artifact·Render 각각 별도, 캐시 삭제 시 소멸). 다른 기기로 옮기거나 안전 보관하려면 <b>주기적으로 파일로 저장</b>하세요.</p></div>'
+   +'<div class="oview"><button data-v="album">🖼 도감</button><button data-v="list">☰ 목록</button></div>'
    +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액순</button><button data-s="rarity">⭐ 등급순</button><button data-s="jp">🇯🇵 일본가순</button></div>';
   opn.appendChild(head);
   if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='6px 2px 14px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);}
@@ -510,6 +530,7 @@ _TABS_JS = '''(function(){
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
   opn.querySelectorAll('.osort button').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{ownedSort=b.dataset.s;renderOwned();};});
+  opn.querySelectorAll('.oview button').forEach(b=>{b.classList.toggle('on',b.dataset.v===ownedView);b.onclick=()=>{ownedView=b.dataset.v;renderOwned();};});
  }
  function addBtn(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  addBtn('💰 매물·가성비','deal',()=>select(0));
@@ -522,7 +543,7 @@ _TABS_JS = '''(function(){
  const lb=document.createElement('div');lb.className='lb';lb.hidden=true;lb.innerHTML='<img alt=""/>';document.body.appendChild(lb);
  const lbimg=lb.querySelector('img');
  lb.addEventListener('click',()=>{lb.hidden=true;lbimg.removeAttribute('src');});
- content.addEventListener('click',e=>{const im=e.target.closest('img.tth');if(!im)return;lbimg.src=im.src;lb.hidden=false;});
+ content.addEventListener('click',e=>{const im=e.target.closest('img.tth,img.ath');if(!im)return;lbimg.src=im.src;lb.hidden=false;});
  document.querySelectorAll(".full table").forEach(tb=>{
   const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");
   const rws=[...tbody.querySelectorAll("tr")];let last={i:null,dir:-1};
