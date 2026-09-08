@@ -606,22 +606,15 @@ _TABS_JS = '''(function(){
    +'<div class="st"><b>'+dupes+'</b><span>여분 종(2+)</span></div>'
    +'<div class="st"><b>'+wishN+'</b><span>★ 위시</span></div></div>'
    +(topName?'<p class="sub2">최고가 보유: <b>'+topName+'</b> '+won(topKr)+'</p>':'')
-   +'<div class="backup"><b>💾 백업 (데이터 보호)</b><div class="bkrow">'
-   +'<button id="bkExp">⬇ 파일로 저장</button><button id="bkImp">⬆ 파일 불러오기</button>'
-   +'<button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 코드 붙여넣기</button>'
-   +'<span class="bkmsg"></span></div>'
-   +'<div class="bkpaste" hidden><textarea placeholder="복사한 백업 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div>'
-   +'<input type="file" id="bkFile" accept="application/json" hidden>'
-   +'<p class="bknote dim">⚠️ 기록은 이 브라우저에만 저장됩니다(Artifact·Render 각각 별도, 캐시 삭제 시 소멸). 다른 기기로 옮기거나 안전 보관하려면 <b>주기적으로 파일로 저장</b>하세요.</p></div>'
+   +'<div class="backup"><b>💾 백업 코드</b> <span class="dim">— 컬렉션을 글자로 복사해 다른 기기·브라우저에 붙여넣어 옮기기 (파일 저장/불러오기는 ← 사이드바)</span>'
+   +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><span class="bkmsg"></span></div>'
+   +'<div class="bkpaste" hidden><textarea placeholder="복사한 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div></div>'
    +'<div class="oview"><button data-v="album">🖼 도감</button><button data-v="list">☰ 목록</button></div>'
    +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액순</button><button data-s="rarity">⭐ 등급순</button><button data-s="jp">🇯🇵 일본가순</button></div>';
   opn.appendChild(head);
   if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='6px 2px 14px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);}
   blocks.forEach(b=>opn.appendChild(b));
   const Q=s=>opn.querySelector(s);
-  Q('#bkExp').onclick=()=>{const blob=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);const d=new Date();a.download='pokemon-collection-'+d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);bkMsg('저장됨');};
-  Q('#bkImp').onclick=()=>Q('#bkFile').click();
-  Q('#bkFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{if(mergeIn(JSON.parse(rd.result))){syncUI();renderOwned();bkMsg('불러옴(병합)');}}catch(err){bkMsg('파일 오류');}};rd.readAsText(f);};
   Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
