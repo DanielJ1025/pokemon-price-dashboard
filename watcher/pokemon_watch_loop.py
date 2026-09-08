@@ -15,6 +15,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 WATCH = HERE / "pokemon_deal_watch.py"
+CARD_WATCH = HERE / "card_watch.py"      # 개별 카드 저평가 감시(매수기회·상승시작)
 LOCK = Path(os.environ.get("TEMP") or "/tmp") / "pokemon_watch_loop.lock"
 INTERVAL = 180          # 3분마다
 MAX_HOURS = 6           # 세션당 최대 감시(그 후 자동 종료 — 공유 PC 배려)
@@ -39,11 +40,12 @@ def main() -> int:
                 LOCK.write_text(str(os.getpid()), encoding="utf-8")   # heartbeat
             except OSError:
                 pass
-            try:
-                subprocess.run([sys.executable, str(WATCH)],
-                               timeout=120, creationflags=CREATE_NO_WINDOW)
-            except Exception:
-                pass                    # 한 번 실패해도 루프 유지
+            for script in (WATCH, CARD_WATCH):      # 팩 매물 + 개별 카드 시세
+                try:
+                    subprocess.run([sys.executable, str(script)],
+                                   timeout=120, creationflags=CREATE_NO_WINDOW)
+                except Exception:
+                    pass                # 한 번 실패해도 루프 유지
             time.sleep(INTERVAL)
     finally:
         try:
