@@ -30,6 +30,7 @@ PACKS = [
 MIN_KR, TOPN = 3000, 15
 RCLASS = {"MUR": "MUR", "HR": "MUR", "SAR": "SAR", "UR": "UR",
           "SR": "SR", "AR": "AR", "RR": "ex", "R": "ex"}
+RORDER = {"MUR": 0, "HR": 0, "UR": 1, "SAR": 2, "SR": 3, "AR": 4, "RR": 5, "R": 6}
 _cache = {"t": 0, "html": ""}
 CACHE_TTL = 3600  # 1시간
 
@@ -84,23 +85,43 @@ def card_html(g):
             f'</div>{cmp}</div></a>')
 
 
+def table_html(rows):
+    trs = []
+    for g in rows:
+        rc = RCLASS.get(g["rarity"], "ex")
+        link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
+        trs.append(
+            f'<tr><td><span class="chip sm {rc}">{H.escape(g["rarity"] or "-")}</span></td>'
+            f'<td class="tn">{H.escape(g["num"])}</td>'
+            f'<td><a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a></td>'
+            f'<td class="tp">{won(g["kr"])}</td>'
+            f'<td class="tj">{won(g.get("jp"))}</td></tr>')
+    return ('<details class="full"><summary>전체 카드 시세 펼치기 ('
+            + str(len(rows)) + '장, 홀로·커먼까지)</summary>'
+            '<div class="tblwrap"><table><thead><tr><th>등급</th><th>번호</th>'
+            '<th>카드</th><th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
+            + "".join(trs) + "</tbody></table></div></details>")
+
+
 def build():
     secs = []
     for disp, query, owned in PACKS:
         try:
-            rows = [g for g in pull(query) if g["kr"] >= MIN_KR]
+            allrows = pull(query)
         except Exception:
-            rows = []
-        total = len(rows)
-        rows = rows[:TOPN]
-        if not rows:
+            allrows = []
+        if not allrows:
             continue
+        grid = [g for g in allrows if g["kr"] >= MIN_KR]
+        total = len(grid)
+        grid = grid[:TOPN]
+        table = sorted(allrows, key=lambda x: (RORDER.get(x["rarity"], 9), -(x["kr"] or 0)))
         own = '<span class="own-badge">보유</span>' if owned else ""
-        meta = f"밸류 {total}장 · 최고 🇰🇷 ₩{rows[0]['kr']:,}"
-        body = "".join(card_html(g) for g in rows)
+        meta = f"밸류 {total}장 · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
+        body = "".join(card_html(g) for g in grid)
         secs.append(f'<section class="pack"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
-                    f'</span></div><div class="grid">{body}</div></section>')
+                    f'</span></div><div class="grid">{body}</div>{table_html(table)}</section>')
     upd = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     tabs = (f'<script>const DEALS={json.dumps(DEALS, ensure_ascii=False)};'
             f'{_TABS_JS}</script>')
@@ -127,18 +148,8 @@ def health():
     return "ok"
 
 
-_HEADER = ('<header class="top"><p class="eyebrow">Pokémon TCG · 팩별 밸류카드 · 한국 실거래'
-           '</p><h1>내 포켓몬 카드 시세판</h1><p class="sub">감시 8팩의 밸류카드를 '
-           '<b>한국 실거래(콜렉토리)</b>로 — 이미지·등급·한국 시세 + <b>일본 비교</b>. '
-           '카드를 누르면 콜렉토리 가격 이력으로.</p><div class="legend">'
-           '<span class="lg-lbl">등급</span>'
-           '<span class="rk"><span class="dot" style="background:var(--mur)"></span>MUR</span>'
-           '<span class="rk"><span class="dot" style="background:var(--sar)"></span>SAR</span>'
-           '<span class="rk"><span class="dot" style="background:var(--ur)"></span>UR</span>'
-           '<span class="rk"><span class="dot" style="background:var(--sr)"></span>SR</span>'
-           '<span class="rk"><span class="dot" style="background:var(--ar)"></span>AR</span>'
-           '<span class="rk"><span class="dot" style="background:var(--ex)"></span>RR</span>'
-           '</div></header>')
+_HEADER = ('<header class="top"><h1>내 포켓몬 카드 시세판</h1>'
+           '<p class="sub">한국 실거래(콜렉토리) · 일본 비교 · 1시간마다 갱신. 팩을 골라 보세요.</p></header>')
 
 _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;--line:#ebe8e1;'
         '--text:#1c1e26;--muted:#6b6f7d;--faint:#9a9eac;--gold:#b8860b;--mur:#d1258a;--ur:#b8860b;'
@@ -176,6 +187,16 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         '.cname{font-size:13px;font-weight:700;line-height:1.25;min-height:2.4em}'
         '.price{font-size:15.5px;font-weight:800;font-variant-numeric:tabular-nums}.price.top{color:var(--gold)}'
         '.cmp{font-size:11px;color:var(--faint)}'
+        '.chip.sm{font-size:9.5px;padding:0 5px}'
+        '.full{border-top:1px solid var(--line)}'
+        '.full summary{padding:12px 20px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}'
+        '.full summary:hover{color:var(--text)}'
+        '.tblwrap{overflow-x:auto;padding:0 20px 18px}'
+        'table{width:100%;border-collapse:collapse;font-size:12.5px}'
+        'th{text-align:left;color:var(--faint);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}'
+        'td{padding:6px 8px;border-bottom:1px solid var(--line)}'
+        'td a{color:inherit;text-decoration:none}td a:hover{color:var(--sar)}'
+        '.tn,.tp,.tj{font-variant-numeric:tabular-nums}.tp{font-weight:700}.tj{color:var(--faint)}'
         '.note{margin-top:24px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 16px;font-size:13px;color:var(--muted)}.note b{color:var(--text)}'
         'footer{margin-top:22px;color:var(--faint);font-size:12.5px}')
 
@@ -203,16 +224,27 @@ DEALS = {
     ],
 }
 
-_TABS_CSS = ('.tabbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:6px;'
-             'padding:11px 0 10px;margin:6px 0 18px;background:var(--bg);border-bottom:1px solid var(--border)}'
-             '.tabbar button{font:inherit;font-size:13px;font-weight:700;color:var(--muted);'
-             'background:var(--surface-2);border:1px solid var(--border);border-radius:999px;'
-             'padding:6px 13px;cursor:pointer;white-space:nowrap}'
-             '.tabbar button:hover{color:var(--text)}'
-             '.tabbar button.active{color:#fff;background:var(--sar);border-color:var(--sar)}'
-             '.tabbar button.deal{color:var(--gold)}'
-             '.tabbar button.deal.active{color:#1c1e26;background:var(--gold);border-color:var(--gold)}'
+_TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;display:flex;gap:34px;align-items:flex-start}'
+             '.sidebar{position:sticky;top:22px;width:214px;flex:0 0 214px}'
+             '.sidebar .brand{margin:0 0 20px}'
+             '.sidebar .brand h1{font-size:21px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em;font-weight:800}'
+             '.sidebar .brand .sub{font-size:12px;color:var(--muted);margin:0;max-width:none;line-height:1.5}'
+             '.tablist{display:flex;flex-direction:column;gap:2px}'
+             '.tablist button{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);text-align:left;'
+             'background:transparent;border:0;border-radius:9px;padding:8px 12px;cursor:pointer;width:100%;'
+             'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s,color .12s}'
+             '.tablist button:hover{background:var(--surface-2);color:var(--text)}'
+             '.tablist button.active{background:var(--sar);color:#fff;font-weight:700}'
+             '.tablist button.deal{color:var(--gold)}'
+             '.tablist button.deal.active{background:var(--gold);color:#1c1e26}'
+             '.tablist .sep{height:1px;background:var(--border);margin:8px 6px}'
+             '.content{flex:1;min-width:0}.content section.pack{margin-top:0}'
              'section.pack[hidden],#deals-panel[hidden]{display:none!important}'
+             '@media(max-width:860px){.wrap{flex-direction:column;gap:14px;padding:24px 16px 60px}'
+             '.sidebar{position:static;width:auto;flex:none}.sidebar .brand{margin-bottom:12px}'
+             '.tablist{flex-direction:row;flex-wrap:wrap;gap:6px}'
+             '.tablist button{width:auto;background:var(--surface-2);border:1px solid var(--border);'
+             'border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700}.tablist .sep{display:none}}'
              '#deals-panel{margin:2px 0 24px}#deals-panel h2{margin:0 0 2px}'
              '#deals-panel .sub2{color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.6}'
              '#deals-panel .tblwrap{overflow-x:auto}'
@@ -243,14 +275,27 @@ _TABS_JS = '''(function(){
  const wrap=document.querySelector('.wrap');
  const packs=[...wrap.querySelectorAll('section.pack')];
  if(!packs.length)return;
+ const header=wrap.querySelector('header.top');
+ const note=wrap.querySelector('.note');
+ const footer=wrap.querySelector('footer');
  const dp=document.createElement('div');dp.id='deals-panel';dp.innerHTML=renderDeals();
- const bar=document.createElement('nav');bar.className='tabbar';
+ const side=document.createElement('aside');side.className='sidebar';
+ const brand=document.createElement('div');brand.className='brand';
+ brand.innerHTML=header?header.innerHTML:'<h1>내 포켓몬 카드 시세판</h1>';
+ const nav=document.createElement('nav');nav.className='tablist';
+ side.appendChild(brand);side.appendChild(nav);
+ const content=document.createElement('main');content.className='content';
+ content.appendChild(dp);
+ packs.forEach(p=>content.appendChild(p));
+ if(note)content.appendChild(note);
+ if(footer)content.appendChild(footer);
+ wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
  const btns=[];
- function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=onclick;bar.appendChild(b);btns.push(b);return b;}
+ function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);packs.forEach((p,j)=>p.hidden=(i!==j+1));try{localStorage.setItem('pkm_tab',i)}catch(e){}}
  add('💰 매물·가성비','deal',()=>select(0));
+ const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
  packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+1));});
- wrap.insertBefore(bar,packs[0]);wrap.insertBefore(dp,packs[0]);
  let start=1;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<=packs.length)start=s;}catch(e){}
  select(start);
 })();'''

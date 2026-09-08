@@ -37,7 +37,7 @@ PACKS = [
 ]
 IMG_MIN = 3000       # 이미지 그리드에 넣을 밸류 하한
 TOPN = 15            # 팩당 이미지 카드 수
-TABLE_MIN = 500      # 전체 표에 넣을 시세 하한(커먼 벌크 제외)
+TABLE_MIN = 0        # 전체 표: 시세 있는 카드 전부(비주류·홀로·커먼까지)
 RCLASS = {"MUR": "MUR", "HR": "MUR", "SAR": "SAR", "UR": "UR",
           "SR": "SR", "AR": "AR", "RR": "ex", "R": "ex"}
 RORDER = {"MUR": 0, "HR": 0, "UR": 1, "SAR": 2, "SR": 3, "AR": 4, "RR": 5, "R": 6}
@@ -197,19 +197,11 @@ def main():
 
 
 _HEADER = '''  <header class="top">
-    <p class="eyebrow">Pokémon TCG · 팩별 밸류카드 · 한국 실거래</p>
     <h1>내 포켓몬 카드 시세판</h1>
-    <p class="sub">감시 10팩의 카드를 <b>한국 실거래(콜렉토리)</b>로 — 이미지·등급·한국 시세 + <b>일본 비교</b>. 밸류카드엔 <b>번개장터 중고 최저가</b>도. 각 팩 "전체 카드 시세 펼치기"로 SR·AR·RR급까지 다 봅니다.</p>
-    <div class="legend"><span class="lg-lbl">등급</span>
-      <span class="rk"><span class="dot" style="background:var(--mur)"></span>MUR</span>
-      <span class="rk"><span class="dot" style="background:var(--sar)"></span>SAR</span>
-      <span class="rk"><span class="dot" style="background:var(--ur)"></span>UR</span>
-      <span class="rk"><span class="dot" style="background:var(--sr)"></span>SR</span>
-      <span class="rk"><span class="dot" style="background:var(--ar)"></span>AR</span>
-      <span class="rk"><span class="dot" style="background:var(--ex)"></span>RR/R</span></div>
+    <p class="sub">한국 실거래(콜렉토리) · 일본 비교 · 번개장터 중고. 팩을 골라 보세요.</p>
   </header>'''
 
-_FOOTER = '''  <div class="note"><b>다중소스.</b> 카드 시세=콜렉토리 한국 실거래(🇯🇵 일본 비교), 밸류카드 <b>번개</b>=번개장터 중고 단품 최저가(대략·매입/박스 제외). 전체 표는 SR·AR·RR급까지, 커먼(500원↓)만 생략.</div>
+_FOOTER = '''  <div class="note"><b>다중소스.</b> 카드 시세=콜렉토리 한국 실거래(🇯🇵 일본 비교), 밸류카드 <b>번개</b>=번개장터 중고 단품 최저가(대략·매입/박스 제외). 전체 표는 <b>시세 있는 카드 전부</b> — SR·AR·RR급부터 홀로·커먼까지. (시세 미등록 카드는 표시 안 됨)</div>
   <footer>출처: 콜렉토리(collectory.cc)·번개장터 · Daniel 개인 참고용 · 시세 변동.</footer>'''
 
 _CSS = ''':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;--line:#ebe8e1;--text:#1c1e26;--muted:#6b6f7d;--faint:#9a9eac;--gold:#b8860b;--mur:#d1258a;--ur:#b8860b;--sar:#7c5cd6;--ar:#12a594;--sr:#2f7ae0;--ex:#7a8394;--own:#12a594;--shadow:0 1px 2px rgba(20,22,30,.06),0 8px 24px rgba(20,22,30,.05);--sans:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif}
@@ -282,13 +274,29 @@ DEALS = {
     ],
 }
 
-_TABS_CSS = '''.tabbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:6px;padding:11px 0 10px;margin:6px 0 18px;background:var(--bg);border-bottom:1px solid var(--border)}
-.tabbar button{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 13px;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
-.tabbar button:hover{color:var(--text)}
-.tabbar button.active{color:#fff;background:var(--sar);border-color:var(--sar)}
-.tabbar button.deal{color:var(--gold)}
-.tabbar button.deal.active{color:#1c1e26;background:var(--gold);border-color:var(--gold)}
+_TABS_CSS = '''.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;display:flex;gap:34px;align-items:flex-start}
+.sidebar{position:sticky;top:22px;width:214px;flex:0 0 214px}
+.sidebar .brand{margin:0 0 20px}
+.sidebar .brand h1{font-size:21px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em;font-weight:800}
+.sidebar .brand .sub{font-size:12px;color:var(--muted);margin:0;max-width:none;line-height:1.5}
+.tablist{display:flex;flex-direction:column;gap:2px}
+.tablist button{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);text-align:left;background:transparent;border:0;border-radius:9px;padding:8px 12px;cursor:pointer;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s,color .12s}
+.tablist button:hover{background:var(--surface-2);color:var(--text)}
+.tablist button.active{background:var(--sar);color:#fff;font-weight:700}
+.tablist button.deal{color:var(--gold)}
+.tablist button.deal.active{background:var(--gold);color:#1c1e26}
+.tablist .sep{height:1px;background:var(--border);margin:8px 6px}
+.content{flex:1;min-width:0}
+.content section.pack{margin-top:0}
 section.pack[hidden],#deals-panel[hidden]{display:none!important}
+@media(max-width:860px){
+ .wrap{flex-direction:column;gap:14px;padding:24px 16px 60px}
+ .sidebar{position:static;width:auto;flex:none}
+ .sidebar .brand{margin-bottom:12px}
+ .tablist{flex-direction:row;flex-wrap:wrap;gap:6px}
+ .tablist button{width:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700}
+ .tablist .sep{display:none}
+}
 #deals-panel{margin:2px 0 24px}
 #deals-panel h2{margin:0 0 2px}
 #deals-panel .sub2{color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.6}
@@ -327,16 +335,29 @@ _TABS_JS = '''(function(){
  const wrap=document.querySelector('.wrap');
  const packs=[...wrap.querySelectorAll('section.pack')];
  if(!packs.length)return;
+ const header=wrap.querySelector('header.top');
+ const note=wrap.querySelector('.note');
+ const footer=wrap.querySelector('footer');
  const dp=document.createElement('div');dp.id='deals-panel';dp.innerHTML=renderDeals();
- const bar=document.createElement('nav');bar.className='tabbar';
+ // 좌측 사이드바(브랜드 + 세로 탭)
+ const side=document.createElement('aside');side.className='sidebar';
+ const brand=document.createElement('div');brand.className='brand';
+ brand.innerHTML=header?header.innerHTML:'<h1>내 포켓몬 카드 시세판</h1>';
+ const nav=document.createElement('nav');nav.className='tablist';
+ side.appendChild(brand);side.appendChild(nav);
+ // 우측 콘텐츠(선택 팩만 노출)
+ const content=document.createElement('main');content.className='content';
+ content.appendChild(dp);
+ packs.forEach(p=>content.appendChild(p));
+ if(note)content.appendChild(note);
+ if(footer)content.appendChild(footer);
+ wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
  const btns=[];
- function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.onclick=onclick;bar.appendChild(b);btns.push(b);return b;}
+ function add(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  function select(i){btns.forEach((b,j)=>b.classList.toggle('active',j===i));dp.hidden=(i!==0);packs.forEach((p,j)=>p.hidden=(i!==j+1));try{localStorage.setItem('pkm_tab',i)}catch(e){}}
  add('💰 매물·가성비','deal',()=>select(0));
+ const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
  packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));add(nm.trim(),'',()=>select(j+1));});
- const firstPack=packs[0];
- wrap.insertBefore(bar,firstPack);
- wrap.insertBefore(dp,firstPack);
  let start=1;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<=packs.length)start=s;}catch(e){}
  select(start);
 })();'''
