@@ -89,7 +89,7 @@ TOP_TIER = {"MUR", "HR", "UR", "SAR"}      # 최상위 등급 = 한 그룹으로
 TOP_KEY = "MUR·UR·SAR"
 
 
-def _tr(g, show_rarity=False):
+def _tr(g, show_rarity=False, pack=""):
     link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
     im = g.get("img")
     imgtag = (f'<img class="tth" src="{H.escape(im)}" loading="lazy" alt=""/>' if im
@@ -103,14 +103,15 @@ def _tr(g, show_rarity=False):
           if g.get("id") else "")
     wb = (f'<button class="wish" data-id="{H.escape(str(g["id"]))}" title="위시리스트" tabindex="-1">★</button>'
           if g.get("id") else "")
+    pk = f'<span class="pk">{H.escape(pack)}</span>' if pack else ""
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
             f'<td><div class="cardcell">{qc}{wb}{imgtag}<span class="cc-txt">{tag} '
-            f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>'
+            f'<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a>{pk}'
             f'</span></div></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
 
 
-def table_html(rows):
+def table_html(rows, pack=""):
     """등급별 접이식 그룹. MUR·UR·SAR은 한 그룹으로 병합, 최고 등급만 기본 펼침, 그룹 내 가격순."""
     groups = {}
     for g in rows:
@@ -130,7 +131,7 @@ def table_html(rows):
             f'<span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
             f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
             f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
-            + "".join(_tr(g, merged) for g in gs) + '</tbody></table></div></details>')
+            + "".join(_tr(g, merged, pack) for g in gs) + '</tbody></table></div></details>')
     return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}장 · 등급별 '
             f'(MUR·UR·SAR 병합 · 최고 등급 기본 펼침 · 머리글로 가격정렬)</div>'
             + "".join(blocks) + '</div>')
@@ -163,7 +164,7 @@ def build():
         secs.append(f'<section class="pack" data-base="{base}"><div class="pack-head"><h2>'
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
                     f'<span class="own-cnt"></span></span><div class="pack-prog"></div></div>'
-                    f'{table_html(allrows)}</section>')
+                    f'{table_html(allrows, disp)}</section>')
     upd = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     tabs = (f'<script>const DEALS={json.dumps(DEALS, ensure_ascii=False)};'
             f'{_TABS_JS}</script>')
@@ -291,6 +292,8 @@ _TABS_CSS = ('.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displa
              '.chip:hover{color:var(--text)}.chip.on{background:var(--sar);color:#fff;border-color:var(--sar)}'
              '.wish{border:0;background:transparent;color:var(--faint);font-size:15px;line-height:1;cursor:pointer;flex:0 0 auto;padding:0 1px}'
              '.wish:hover{color:var(--gold)}.wish.on{color:var(--gold)}'
+             '.pk{display:none;font-size:10.5px;color:var(--faint);font-weight:600;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;margin-left:5px;white-space:nowrap}'
+             '.content.qmode .pk,#owned-panel .pk{display:inline-block}'
              '.pack-prog{flex-basis:100%;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600;margin-top:6px}'
              '.pbar{display:inline-block;width:130px;height:7px;border-radius:4px;background:var(--surface);overflow:hidden;flex:0 0 auto;border:1px solid var(--border)}'
              '.pbar i{display:block;height:100%;background:var(--own)}'
@@ -423,11 +426,13 @@ _TABS_JS = '''(function(){
  function refresh(){
   const query=!!searchQ||filterMode!=='all';
   if(query){
+   content.classList.add('qmode');
    dp.hidden=true;opn.hidden=true;btns.forEach(b=>b.classList.remove('active'));
    let any=false;
    packs.forEach(sec=>{let ph=false;sec.querySelectorAll('.rgrp').forEach(gr=>{let gh=false;gr.querySelectorAll('tbody tr').forEach(tr=>{const v=rowVisible(tr);tr.style.display=v?'':'none';if(v)gh=true;});gr.style.display=gh?'':'none';gr.open=gh;if(gh)ph=true;});sec.hidden=!ph;if(ph)any=true;});
    noRes.hidden=any;
   }else{
+   content.classList.remove('qmode');
    packs.forEach(sec=>{sec.querySelectorAll('tbody tr').forEach(tr=>tr.style.display='');sec.querySelectorAll('.rgrp').forEach((gr,i)=>{gr.style.display='';gr.open=(i===0);});});
    noRes.hidden=true;dp.hidden=(curTab!==0);opn.hidden=(curTab!==1);packs.forEach((p,j)=>p.hidden=(curTab!==j+2));btns.forEach((b,j)=>b.classList.toggle('active',j===curTab));if(curTab===1)renderOwned();
   }
