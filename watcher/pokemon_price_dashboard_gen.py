@@ -146,31 +146,42 @@ def card_html(g):
             f'<div class="price{top}">🇰🇷 {won(g["kr"])}</div>{cmp}{bj}</div></a>')
 
 
-def _tr(g):
+TOP_TIER = {"MUR", "HR", "UR", "SAR"}      # 최상위 등급 = 한 그룹으로 병합
+TOP_KEY = "MUR·UR·SAR"
+
+
+def _tr(g, show_rarity=False):
     link = f"https://collectory.cc/cards/{g['id']}" if g.get("id") else "#"
+    chip = (f'<span class="chip sm {RCLASS.get(g["rarity"], "ex")}">{H.escape(g["rarity"] or "-")}</span> '
+            if show_rarity else "")
     return (f'<tr><td class="tn">{H.escape(g["num"])}</td>'
-            f'<td><a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a></td>'
+            f'<td>{chip}<a href="{link}" target="_blank" rel="noopener">{H.escape(g["name"])}</a></td>'
             f'<td class="tp">{won(g["kr"])}</td><td class="tj">{won(g.get("jp"))}</td></tr>')
 
 
 def table_html(rows):
-    """등급별 접이식 그룹(RORDER 순). SAR만 기본 펼침, 각 그룹은 가격순."""
+    """등급별 접이식 그룹. MUR·UR·SAR은 한 그룹으로 병합, 최고 등급만 기본 펼침, 그룹 내 가격순."""
     groups = {}
     for g in rows:
-        groups.setdefault(g["rarity"] or "-", []).append(g)
+        k = TOP_KEY if g["rarity"] in TOP_TIER else (g["rarity"] or "-")
+        groups.setdefault(k, []).append(g)
+    ordered = sorted(groups.items(),
+                     key=lambda kv: (-1 if kv[0] == TOP_KEY else RORDER.get(kv[0], 9), kv[0]))
     blocks = []
-    for rar, gs in sorted(groups.items(), key=lambda kv: (RORDER.get(kv[0], 9), kv[0])):
+    for idx, (rar, gs) in enumerate(ordered):
         gs.sort(key=lambda x: -(x["kr"] or 0))
-        rc = RCLASS.get(rar, "ex")
-        op = " open" if rar == "SAR" else ""
+        merged = rar == TOP_KEY
+        rc = "MUR" if merged else RCLASS.get(rar, "ex")
+        op = " open" if idx == 0 else ""      # 최고 등급 그룹만 기본 펼침
         blocks.append(
             f'<details class="rgrp"{op}><summary><span class="chip sm {rc}">{H.escape(rar)}</span>'
             f'<span class="rgrp-n">{len(gs)}장</span><span class="rgrp-top">최고 {won(gs[0]["kr"])}</span></summary>'
             f'<div class="tblwrap"><table><thead><tr><th>번호</th><th>카드</th>'
             f'<th>🇰🇷 한국</th><th>🇯🇵 일본</th></tr></thead><tbody>'
-            + "".join(_tr(g) for g in gs) + '</tbody></table></div></details>')
+            + "".join(_tr(g, merged) for g in gs) + '</tbody></table></div></details>')
     return (f'<div class="full"><div class="full-hd">전체 카드 시세 · {len(rows)}장 · 등급별 '
-            f'(SAR 기본 펼침 · 그룹 열고 머리글로 가격정렬)</div>' + "".join(blocks) + '</div>')
+            f'(MUR·UR·SAR 병합 · 최고 등급 기본 펼침 · 머리글로 가격정렬)</div>'
+            + "".join(blocks) + '</div>')
 
 
 def section(disp, query, owned):
