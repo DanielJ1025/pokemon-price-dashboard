@@ -257,7 +257,7 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         'td a{color:inherit;text-decoration:none}td a:hover{color:var(--sar)}'
         '.tn,.tp,.tj{font-variant-numeric:tabular-nums}.tp{font-weight:700}.tj{color:var(--faint)}'
         'td.tp,td.tj{text-align:right;white-space:nowrap;min-width:92px}'
-        '.wsym{float:left;font-weight:400;color:var(--faint);opacity:.85}th.wcolh{text-align:right}'
+        '.wsym{font-weight:400;color:var(--faint);opacity:.8;margin-right:1px}th.wcolh{text-align:right}'
         'td{vertical-align:middle}.cardcell{display:flex;align-items:center;gap:10px}'
         '.tth{width:40px;height:56px;object-fit:cover;border-radius:5px;background:var(--line);flex:0 0 auto}'
         '.tth.noimg{display:inline-flex;align-items:center;justify-content:center;font-size:18px;opacity:.5}'
@@ -312,6 +312,9 @@ _TABS_CSS = ('.wrap{max-width:none;margin:0;padding:22px 16px 56px;display:flex;
              '.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:8px 0 16px}'
              '.st{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}'
              '.st b{display:block;font-size:16px;font-weight:800}.st span{font-size:11px;color:var(--muted)}'
+        '.vtrend{margin:4px 0 16px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px}'
+        '.vt-head{font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:8px}'
+        '.vt-head .vup{color:var(--own)}.vt-head .vdn{color:var(--mur)}.spark{width:100%;height:44px;display:block}'
              '.backup{margin:18px 0 8px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px}'
              '.backup>b{font-size:13px}'
              '.bkrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}'
@@ -400,9 +403,11 @@ _TABS_JS = '''(function(){
  const DBKEY="pkm_db";
  let DB;try{DB=JSON.parse(localStorage.getItem(DBKEY)||"null");}catch(e){DB=null;}
  if(!DB||typeof DB!=="object"){DB={qty:{},wish:{}};try{const oq=JSON.parse(localStorage.getItem("pkm_qty")||"null");if(oq&&typeof oq==="object")DB.qty=oq;else{const oo=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(oo))oo.forEach(id=>{DB.qty[id]=1;});}}catch(e){}}
- DB.qty=DB.qty||{};DB.wish=DB.wish||{};
+ DB.qty=DB.qty||{};DB.wish=DB.wish||{};DB.hist=DB.hist||[];
  const saveDB=()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}};
  const qOf=el=>DB.qty[el.dataset.id]||0;
+ function snapshotValue(){let v=0;document.querySelectorAll('.qty').forEach(el=>{v+=(DB.qty[el.dataset.id]||0)*(+el.dataset.kr||0);});const d=new Date().toISOString().slice(0,10);const last=DB.hist[DB.hist.length-1];if(last&&last.d===d)last.v=v;else DB.hist.push({d:d,v:v});if(DB.hist.length>120)DB.hist=DB.hist.slice(-120);saveDB();}
+ function sparkline(){const hist=DB.hist||[];if(hist.length<2)return '<div class="vtrend dim">컬렉션 가치 추이 — 기록이 2일 이상 쌓이면 그래프가 표시됩니다.</div>';const vals=hist.map(h=>h.v),mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1,W=240,H=44;const pts=vals.map((v,i)=>((i/(vals.length-1))*W).toFixed(1)+','+(H-((v-mn)/rng)*(H-8)-4).toFixed(1)).join(' ');const cur=vals[vals.length-1],prev=vals[vals.length-2],dv=cur-prev,up=dv>=0;return '<div class="vtrend"><div class="vt-head">📈 컬렉션 가치 추이 <span class="'+(up?'vup':'vdn')+'">'+(up?'▲':'▼')+' '+won(Math.abs(dv))+'</span> <span class="dim">('+hist.length+'회 기록 · 최저 '+won(mn)+' ~ 최고 '+won(mx)+')</span></div><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="spark"><polyline points="'+pts+'" fill="none" stroke="var(--own)" stroke-width="2" stroke-linejoin="round"/></svg></div>';}
  function renderDeals(){
   const rows=DEALS.rows.map(r=>{
    const price=r.price==null?'<span class="dim">품절/왜곡</span>':won(r.price);
@@ -499,7 +504,7 @@ _TABS_JS = '''(function(){
  }
  function select(i){searchQ='';search.value='';filterMode='all';curTab=i;refresh();try{localStorage.setItem('pkm_tab',i)}catch(e){}}
  search.addEventListener('input',()=>{searchQ=search.value.trim().toLowerCase();refresh();});
- function setQ(el,q){q=Math.max(0,q|0);const id=el.dataset.id;if(q)DB.qty[id]=q;else delete DB.qty[id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveDB();updateCounts();if(!opn.hidden)renderOwned();if(filterMode!=='all')refresh();}
+ function setQ(el,q){q=Math.max(0,q|0);const id=el.dataset.id;if(q)DB.qty[id]=q;else delete DB.qty[id];el.querySelector('.qn').textContent=q;el.classList.toggle('has',q>0);saveDB();updateCounts();snapshotValue();if(!opn.hidden)renderOwned();if(filterMode!=='all')refresh();}
  document.querySelectorAll('.qty').forEach(el=>{const q0=qOf(el);el.querySelector('.qn').textContent=q0;el.classList.toggle('has',q0>0);el.querySelector('.qm').addEventListener('click',()=>setQ(el,qOf(el)-1));el.querySelector('.qp').addEventListener('click',()=>setQ(el,qOf(el)+1));});
  document.querySelectorAll('.wish').forEach(b=>{const id=b.dataset.id;if(DB.wish[id])b.classList.add('on');b.addEventListener('click',()=>{if(DB.wish[id]){delete DB.wish[id];b.classList.remove('on');}else{DB.wish[id]=1;b.classList.add('on');}saveDB();updateCounts();if(filterMode==='wish')refresh();});});
  function bkMsg(m){const s=opn.querySelector('.bkmsg');if(s){s.textContent=m;setTimeout(()=>{if(s)s.textContent='';},2500);}}
@@ -532,6 +537,7 @@ _TABS_JS = '''(function(){
    +'<div class="st"><b>'+dupes+'</b><span>여분 종(2+)</span></div>'
    +'<div class="st"><b>'+wishN+'</b><span>★ 위시</span></div></div>'
    +(topName?'<p class="sub2">최고가 보유: <b>'+topName+'</b> '+won(topKr)+'</p>':'')
+   +sparkline()
    +'<div class="backup"><b>💾 백업 코드</b> <span class="dim">— 컬렉션을 글자로 복사해 다른 기기·브라우저에 붙여넣어 옮기기 (파일 저장/불러오기는 ← 사이드바)</span>'
    +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><span class="bkmsg"></span></div>'
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div></div>'
@@ -555,7 +561,7 @@ _TABS_JS = '''(function(){
  addBtn('💼 내 보유카드','own',()=>select(1));
  const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
  packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;addBtn(nm.trim()+(bs&&bs!=='?'?(' ['+bs+']'):''),'',()=>select(j+2));});
- updateCounts();
+ updateCounts();snapshotValue();
  let start=2;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<packs.length+2)start=s;}catch(e){}
  curTab=start;refresh();
  const lb=document.createElement('div');lb.className='lb';lb.hidden=true;lb.innerHTML='<img alt=""/>';document.body.appendChild(lb);
