@@ -387,6 +387,16 @@ _TABS_CSS = '''.wrap{max-width:1240px;margin:0 auto;padding:36px 24px 72px;displ
 .bkpaste textarea{flex:1;height:54px;font:inherit;font-size:11px;padding:7px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);resize:vertical}
 .bkpaste button{align-self:flex-start;font:inherit;font-size:12px;font-weight:700;padding:6px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer}
 .bknote{font-size:11px;margin:10px 0 0;line-height:1.6}
+.bkbar{display:flex;gap:6px;margin-top:14px}
+.bkbar button{flex:1;font:inherit;font-size:12px;font-weight:700;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:8px 6px;cursor:pointer}
+.bkbar button:hover{border-color:var(--own);color:var(--own)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:120;background:var(--text);color:var(--bg);font-size:13px;font-weight:700;padding:10px 18px;border-radius:999px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.toast[hidden]{display:none}
+.osort{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px}
+.osort>span{font-size:11.5px;color:var(--faint);font-weight:700;margin-right:2px}
+.osort button{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:5px 11px;cursor:pointer}
+.osort button:hover{color:var(--text)}
+.osort button.on{background:var(--sar);color:#fff;border-color:var(--sar)}
 .tth{cursor:zoom-in}
 .lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;cursor:zoom-out}
 .lb[hidden]{display:none}
@@ -488,7 +498,17 @@ _TABS_JS = '''(function(){
  const FIL=[['all','전체'],['own','보유'],['miss','미보유'],['dupe','여분2+'],['wish','★위시']];
  const chips={};let filterMode='all';
  FIL.forEach(([k,lbl])=>{const c=document.createElement('button');c.className='chip'+(k==='all'?' on':'');c.textContent=lbl;c.onclick=()=>{filterMode=k;refresh();};filters.appendChild(c);chips[k]=c;});
- side.appendChild(brand);side.appendChild(search);side.appendChild(filters);side.appendChild(nav);
+ const toastEl=document.createElement('div');toastEl.className='toast';toastEl.hidden=true;document.body.appendChild(toastEl);
+ let toastT;function toast(m){toastEl.textContent=m;toastEl.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{toastEl.hidden=true;},1800);}
+ function exportDB(){const blob=new Blob([JSON.stringify(DB)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);const d=new Date();a.download='pokemon-collection-'+d.getFullYear()+('0'+(d.getMonth()+1)).slice(-2)+('0'+d.getDate()).slice(-2)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('💾 백업 저장됨');}
+ const bkbar=document.createElement('div');bkbar.className='bkbar';
+ const saveBtn=document.createElement('button');saveBtn.textContent='💾 저장';saveBtn.title='컬렉션을 파일로 다운로드';saveBtn.onclick=exportDB;
+ const loadBtn=document.createElement('button');loadBtn.textContent='📂 불러오기';loadBtn.title='백업 파일 업로드(병합)';
+ const fileIn=document.createElement('input');fileIn.type='file';fileIn.accept='application/json';fileIn.hidden=true;
+ loadBtn.onclick=()=>fileIn.click();
+ fileIn.onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{if(mergeIn(JSON.parse(rd.result))){syncUI();if(!opn.hidden)renderOwned();toast('📂 불러옴(병합)');}}catch(err){toast('파일 오류');}fileIn.value='';};rd.readAsText(f);};
+ bkbar.appendChild(saveBtn);bkbar.appendChild(loadBtn);bkbar.appendChild(fileIn);
+ side.appendChild(brand);side.appendChild(search);side.appendChild(filters);side.appendChild(nav);side.appendChild(bkbar);
  // 우측 콘텐츠(선택 탭만 노출)
  const content=document.createElement('main');content.className='content';
  content.appendChild(dp);content.appendChild(opn);
@@ -497,8 +517,12 @@ _TABS_JS = '''(function(){
  if(footer)content.appendChild(footer);
  wrap.innerHTML='';wrap.appendChild(side);wrap.appendChild(content);
  const noRes=document.createElement('p');noRes.className='no-res';noRes.textContent='해당하는 카드가 없습니다.';noRes.hidden=true;content.appendChild(noRes);
- let searchQ='',curTab=2;const btns=[];
+ let searchQ='',curTab=2,ownedSort='kr';const btns=[];
  const pct=(a,b)=>b?Math.round(a/b*100):0;
+ const RANK={MUR:0,HR:0,UR:1,SAR:2,SR:3,AR:4,RR:5,R:6,ACE:7,U:8,C:9};
+ const rrank=tr=>{const t=tr.querySelector('.rtag');const r=t?t.textContent.replace(/[\\[\\]]/g,'').trim():'';return RANK[r]==null?10:RANK[r];};
+ const cellNum=(tr,sel)=>{const c=tr.querySelector(sel);return c?(parseInt(c.textContent.replace(/[^0-9]/g,''))||0):0;};
+ function sortItems(items){items.sort((ea,eb)=>{const a=ea.closest('tr'),b=eb.closest('tr');if(ownedSort==='rarity'){const d=rrank(a)-rrank(b);if(d)return d;return cellNum(b,'.tp')-cellNum(a,'.tp');}if(ownedSort==='jp')return cellNum(b,'.tj')-cellNum(a,'.tj');return cellNum(b,'.tp')-cellNum(a,'.tp');});}
  function packStat(sec){
   const base=parseInt(sec.dataset.base)||0;const seen=new Set();let cards=0,val=0,dupes=0,uniq=0,topKr=0,topName='';
   sec.querySelectorAll('tbody tr').forEach(tr=>{const el=tr.querySelector('.qty');if(!el)return;const q=DB.qty[el.dataset.id]||0;if(q>0){cards+=q;uniq++;const kr=+el.dataset.kr||0;val+=q*kr;if(q>=2)dupes++;if(kr>topKr){topKr=kr;const a=tr.querySelector('.cc-txt a');topName=a?a.textContent:'';}const t=tr.querySelector('.tn');const n=t?parseInt(t.textContent):NaN;if(!isNaN(n)&&base&&n<=base)seen.add(n);}});
@@ -547,6 +571,7 @@ _TABS_JS = '''(function(){
   packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;uniq+=st.uniq;dupes+=st.dupes;ownedBase+=st.ownedBase;base+=st.base;if(st.topKr>topKr){topKr=st.topKr;topName=st.topName;}
    const items=[...sec.querySelectorAll('.qty')].filter(el=>(DB.qty[el.dataset.id]||0)>0);
    if(!items.length)return;
+   sortItems(items);
    const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();
    let sub=0,cnt=0;const tb=document.createElement('tbody');
    items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();tb.appendChild(c);});
@@ -568,7 +593,8 @@ _TABS_JS = '''(function(){
    +'<span class="bkmsg"></span></div>'
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 백업 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div>'
    +'<input type="file" id="bkFile" accept="application/json" hidden>'
-   +'<p class="bknote dim">⚠️ 기록은 이 브라우저에만 저장됩니다(Artifact·Render 각각 별도, 캐시 삭제 시 소멸). 다른 기기로 옮기거나 안전 보관하려면 <b>주기적으로 파일로 저장</b>하세요.</p></div>';
+   +'<p class="bknote dim">⚠️ 기록은 이 브라우저에만 저장됩니다(Artifact·Render 각각 별도, 캐시 삭제 시 소멸). 다른 기기로 옮기거나 안전 보관하려면 <b>주기적으로 파일로 저장</b>하세요.</p></div>'
+   +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액순</button><button data-s="rarity">⭐ 등급순</button><button data-s="jp">🇯🇵 일본가순</button></div>';
   opn.appendChild(head);
   if(!total){const e=document.createElement('p');e.className='dim';e.style.padding='6px 2px 14px';e.textContent='보유 카드가 없습니다. 각 팩에서 + 로 수량을 올리세요.';opn.appendChild(e);}
   blocks.forEach(b=>opn.appendChild(b));
@@ -579,12 +605,13 @@ _TABS_JS = '''(function(){
   Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
+  opn.querySelectorAll('.osort button').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{ownedSort=b.dataset.s;renderOwned();};});
  }
  function addBtn(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  addBtn('💰 매물·가성비','deal',()=>select(0));
  addBtn('💼 내 보유카드','own',()=>select(1));
  const sep=document.createElement('div');sep.className='sep';nav.appendChild(sep);
- packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;addBtn(nm.trim()+(bs&&bs!=='?'?(' /'+bs):''),'',()=>select(j+2));});
+ packs.forEach((p,j)=>{const nm=(p.querySelector('h2')||{}).textContent||('팩'+(j+1));const bs=p.dataset.base;addBtn(nm.trim()+(bs&&bs!=='?'?(' ['+bs+']'):''),'',()=>select(j+2));});
  updateCounts();
  let start=2;try{const s=parseInt(localStorage.getItem('pkm_tab'));if(!isNaN(s)&&s>=0&&s<packs.length+2)start=s;}catch(e){}
  curTab=start;refresh();
