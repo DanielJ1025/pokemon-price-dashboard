@@ -396,6 +396,15 @@ _TABS_CSS = '''.wrap{max-width:none;margin:0;padding:22px 16px 56px;display:flex
 .vt-head{font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:8px}
 .vt-head .vup{color:var(--own)}.vt-head .vdn{color:var(--mur)}
 .spark{width:100%;height:44px;display:block}
+.bdwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 16px}
+.bd-col{background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:12px 14px}
+.bd-h{font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:8px}
+.bd-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}
+.bd-lbl{flex:0 0 96px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-bar{flex:1;height:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;min-width:40px}
+.bd-bar i{display:block;height:100%;background:var(--sar)}
+.bd-v{flex:0 0 auto;color:var(--faint);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:700px){.bdwrap{grid-template-columns:1fr}}
 .backup{margin:18px 0 8px;padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:11px}
 .backup>b{font-size:13px}
 .bkrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}
@@ -622,6 +631,16 @@ _TABS_JS = '''(function(){
   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');const thd=document.createElement('thead');thd.innerHTML=ownedHead();tbl.appendChild(thd);tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
   return d;
  }
+ function breakdown(){
+  const RK={MUR:0,HR:0,UR:1,SAR:2,SR:3,AR:4,RR:5,R:6,ACE:7,U:8,C:9},TOP={MUR:1,HR:1,UR:1,SAR:1};
+  const gr={};let tv=0;
+  document.querySelectorAll('.qty').forEach(el=>{const q=DB.qty[el.dataset.id]||0;if(q<=0)return;const tr=el.closest('tr');const t=tr.querySelector('.rtag');let r=t?t.textContent.replace(/[\\[\\]]/g,'').trim():'-';const key=TOP[r]?'MUR·UR·SAR':r;const kr=+el.dataset.kr||0;const g=gr[key]||(gr[key]={u:0,c:0,v:0,o:(key==='MUR·UR·SAR'?-1:(RK[r]==null?10:RK[r]))});g.u++;g.c+=q;g.v+=q*kr;tv+=q*kr;});
+  const rkeys=Object.keys(gr);if(!rkeys.length)return '';
+  const rrows=rkeys.sort((a,b)=>gr[a].o-gr[b].o).map(k=>{const g=gr[k],p=tv?Math.round(g.v/tv*100):0;return '<div class="bd-row"><span class="bd-lbl">'+k+'</span><span class="bd-bar"><i style="width:'+p+'%"></i></span><span class="bd-v">'+g.u+'종 '+g.c+'장 · '+won(g.v)+'</span></div>';}).join('');
+  let pv=0;const pr=[];packs.forEach(sec=>{const st=packStat(sec);if(!st.cards)return;pv+=st.val;pr.push({n:(sec.querySelector('h2')||{textContent:''}).textContent.trim(),st:st});});
+  const prows=pr.sort((a,b)=>b.st.val-a.st.val).map(x=>{const p=pv?Math.round(x.st.val/pv*100):0;return '<div class="bd-row"><span class="bd-lbl">'+x.n+'</span><span class="bd-bar"><i style="width:'+p+'%"></i></span><span class="bd-v">'+x.st.uniq+'종 '+x.st.cards+'장 · '+won(x.st.val)+'</span></div>';}).join('');
+  return '<div class="bdwrap"><div class="bd-col"><div class="bd-h">📊 등급별 보유</div>'+rrows+'</div><div class="bd-col"><div class="bd-h">📦 팩별 보유</div>'+prows+'</div></div>';
+ }
  function renderOwned(){
   opn.innerHTML='';
   let total=0,val=0,uniq=0,dupes=0,ownedBase=0,base=0,topKr=0,topName='';
@@ -639,6 +658,7 @@ _TABS_JS = '''(function(){
    +'<div class="st"><b>'+wishN+'</b><span>★ 위시</span></div></div>'
    +(topName?'<p class="sub2">최고가 보유: <b>'+topName+'</b> '+won(topKr)+'</p>':'')
    +sparkline()
+   +breakdown()
    +'<div class="backup"><b>💾 백업 코드</b> <span class="dim">— 컬렉션을 글자로 복사해 다른 기기·브라우저에 붙여넣어 옮기기 (파일 저장/불러오기는 ← 사이드바)</span>'
    +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><span class="bkmsg"></span></div>'
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div></div>'
