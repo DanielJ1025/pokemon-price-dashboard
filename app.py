@@ -248,6 +248,9 @@ _CSS = (':root{--bg:#f6f5f2;--surface:#fff;--surface-2:#f0eee9;--border:#e2ded6;
         '.rgrp-n{color:var(--faint);font-weight:600;font-size:12px;display:inline-block;min-width:46px;flex:0 0 auto}'
         '.rgrp-top{margin-left:auto;color:var(--faint);font-weight:600;font-size:12px;min-width:104px;text-align:right;font-variant-numeric:tabular-nums;flex:0 0 auto;white-space:nowrap}'
         '.tblwrap{overflow-x:auto;padding:0 0 10px}'
+        'th{position:relative}'
+        '.colres{position:absolute;right:0;top:0;height:100%;width:9px;cursor:col-resize;user-select:none;z-index:2}'
+        '.colres:hover{background:var(--sar);opacity:.35}'
         'th.sortable{cursor:pointer;user-select:none;white-space:nowrap}th.sortable:hover{color:var(--text)}'
         'th.sorted{color:var(--sar)}th.sorted[data-dir="down"]::after{content:" ▾"}'
         'th.sorted[data-dir="up"]::after{content:" ▴"}.osort .odir{background:var(--surface);border-color:var(--own);color:var(--own)}'
@@ -575,6 +578,7 @@ _TABS_JS = '''(function(){
   opn.querySelectorAll('.owned-grp thead th[data-k]').forEach(t=>{t.onclick=()=>{const k=t.dataset.k;if(ownedSort===k)ownedDir=-ownedDir;else{ownedSort=k;ownedDir=(k==='name'?1:-1);}renderOwned();};});
   opn.querySelectorAll('.oview button[data-v]').forEach(b=>{b.classList.toggle('on',b.dataset.v===ownedView);b.onclick=()=>{ownedView=b.dataset.v;renderOwned();};});
   opn.querySelectorAll('.oview button[data-g]').forEach(b=>{b.classList.toggle('on',b.dataset.g===ownedGroup);b.onclick=()=>{ownedGroup=b.dataset.g;renderOwned();};});
+  if(typeof resizableColumns==='function')resizableColumns();
  }
  function addBtn(label,cls,onclick){const b=document.createElement('button');b.textContent=label;if(cls)b.className=cls;b.title=label;b.onclick=onclick;nav.appendChild(b);btns.push(b);return b;}
  addBtn('💰 매물·가성비','deal',()=>select(0));
@@ -589,12 +593,20 @@ _TABS_JS = '''(function(){
  lb.addEventListener('click',()=>{lb.hidden=true;lbimg.removeAttribute('src');});
  content.addEventListener('click',e=>{const im=e.target.closest('img.tth,img.ath');if(!im)return;lbimg.src=im.src;lb.hidden=false;});
  const colKey=(tr,i)=>{if(i===1){const a=tr.querySelector('.cc-txt a');return a?a.textContent.trim():'';}if(i===0)return parseInt((tr.children[0].textContent||'').trim())||0;return numOf(tr.children[i].textContent);};
+ function resizableColumns(){
+  let colw={};try{colw=JSON.parse(localStorage.getItem('pkm_colw')||'{}')}catch(e){}
+  const DEF={0:64,2:104,3:104};
+  function apply(){document.querySelectorAll('.full table,#owned-panel table').forEach(tb=>{tb.style.tableLayout='fixed';tb.style.width='100%';tb.querySelectorAll('thead th').forEach((th,i)=>{const w=colw[i]!=null?colw[i]:DEF[i];th.style.width=w?w+'px':'';});});}
+  document.querySelectorAll('.full table thead,#owned-panel table thead').forEach(thead=>{thead.querySelectorAll('th').forEach((th,i)=>{if(th.querySelector('.colres'))return;const h=document.createElement('span');h.className='colres';th.appendChild(h);h.addEventListener('mousedown',e=>{e.preventDefault();e.stopPropagation();const sx=e.pageX,sw=th.offsetWidth;function mv(ev){colw[i]=Math.max(46,sw+(ev.pageX-sx));apply();}function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);try{localStorage.setItem('pkm_colw',JSON.stringify(colw))}catch(e){}}document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});});});
+  apply();
+ }
  document.querySelectorAll(".full table").forEach(tb=>{
   const tbody=tb.querySelector("tbody"),ths=tb.querySelectorAll("th");
   const rws=[...tbody.querySelectorAll("tr")];let last={i:null,dir:-1};
   function sort(i){const dir=last.i===i?-last.dir:(i===1?1:-1);last={i,dir};rws.sort((a,b)=>{const ka=colKey(a,i),kb=colKey(b,i);return (typeof ka==='string'?ka.localeCompare(kb,'ko'):ka-kb)*dir;});rws.forEach(r=>tbody.appendChild(r));ths.forEach((t,j)=>{const on=j===i;t.classList.toggle("sorted",on);t.dataset.dir=on?(dir>0?"up":"down"):"";});}
   ths.forEach((t,i)=>{t.classList.add("sortable");t.title="클릭: 정렬(재클릭=방향)";t.addEventListener("click",()=>sort(i));});
  });
+ resizableColumns();
 })();'''
 
 
