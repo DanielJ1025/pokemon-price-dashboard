@@ -10,11 +10,12 @@ Render 배포: render.yaml 참고(무료 Web Service).
 import gzip
 import html as H
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
 
-from flask import Flask, Response
+from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
 
@@ -196,6 +197,55 @@ def index():
 @app.route("/healthz")
 def health():
     return "ok"
+
+
+# ── 컬렉션 클라우드 저장 (구글시트 _컬렉션 탭) ──────────────────
+# 대시보드가 카드 수량을 바꿀 때마다(자동) 또는 '시트로 전송' 버튼(수동)으로
+# localStorage 컬렉션 {qty,wish,hist} 을 여기로 POST → 시트 _컬렉션 A1 에 저장.
+# PC 스케줄러(pokemon_sheets_sync.py)가 이 셀을 읽어 보유카드/현황/추이를 갱신.
+_SHEET = {"ws": None, "err": None}
+
+
+def _collection_ws():
+    if _SHEET["ws"] or _SHEET["err"]:
+        return _SHEET["ws"]
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        sid = os.environ.get("POKEMON_SHEET_ID", "").strip()
+        if not raw or not sid:
+            raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON/POKEMON_SHEET_ID 미설정")
+        info = (json.loads(raw) if raw.startswith("{")
+                else json.loads(open(raw, encoding="utf-8").read()))
+        creds = Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+        sh = gspread.authorize(creds).open_by_key(sid)
+        try:
+            _SHEET["ws"] = sh.worksheet("_컬렉션")
+        except Exception:
+            _SHEET["ws"] = sh.add_worksheet(title="_컬렉션", rows=2, cols=2)
+    except Exception as e:
+        _SHEET["err"] = str(e)
+    return _SHEET["ws"]
+
+
+@app.route("/api/collection", methods=["POST"])
+def api_collection():
+    try:
+        obj = json.loads(request.get_data(as_text=True) or "")
+        assert isinstance(obj, dict) and "qty" in obj
+    except Exception:
+        return jsonify(ok=False, error="bad json"), 400
+    ws = _collection_ws()
+    if not ws:
+        return jsonify(ok=False, error=_SHEET["err"] or "sheet 미설정"), 503
+    try:
+        stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+        ws.update([[json.dumps(obj, ensure_ascii=False), stamp]], "A1:B1")
+        return jsonify(ok=True, at=stamp, n=len(obj.get("qty", {})))
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
 
 
 _HEADER = ('<header class="top"><h1>내 포켓몬 카드 시세판</h1>'
@@ -416,7 +466,10 @@ _TABS_JS = '''(function(){
  let DB;try{DB=JSON.parse(localStorage.getItem(DBKEY)||"null");}catch(e){DB=null;}
  if(!DB||typeof DB!=="object"){DB={qty:{},wish:{}};try{const oq=JSON.parse(localStorage.getItem("pkm_qty")||"null");if(oq&&typeof oq==="object")DB.qty=oq;else{const oo=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(oo))oo.forEach(id=>{DB.qty[id]=1;});}}catch(e){}}
  DB.qty=DB.qty||{};DB.wish=DB.wish||{};DB.hist=DB.hist||[];
- const saveDB=()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}};
+ let _cloudT;
+ function cloudEnabled(){try{return localStorage.getItem('pkm_cloud')==='1';}catch(e){return false;}}
+ function cloudPush(now){if(!now&&!cloudEnabled())return;try{clearTimeout(_cloudT);}catch(e){}_cloudT=setTimeout(function(){fetch('/api/collection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)}).then(r=>r.json()).then(j=>{if(now){if(j&&j.ok)toast('☁️ 시트 업로드됨 ('+j.n+'종) · 자동동기화 켜짐');else toast('업로드 실패: '+((j&&j.error)||'?'));}}).catch(()=>{if(now)toast('업로드 실패(네트워크)');});},now?0:2500);}
+ const saveDB=()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}cloudPush(false);};
  const qOf=el=>DB.qty[el.dataset.id]||0;
  function snapshotValue(){let v=0;document.querySelectorAll('.qty').forEach(el=>{v+=(DB.qty[el.dataset.id]||0)*(+el.dataset.kr||0);});const d=new Date().toISOString().slice(0,10);const last=DB.hist[DB.hist.length-1];if(last&&last.d===d)last.v=v;else DB.hist.push({d:d,v:v});if(DB.hist.length>120)DB.hist=DB.hist.slice(-120);saveDB();}
  function sparkline(){const hist=DB.hist||[];if(hist.length<2)return '<div class="vtrend dim">컬렉션 가치 추이 — 기록이 2일 이상 쌓이면 그래프가 표시됩니다.</div>';const vals=hist.map(h=>h.v),mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1,W=240,H=44;const pts=vals.map((v,i)=>((i/(vals.length-1))*W).toFixed(1)+','+(H-((v-mn)/rng)*(H-8)-4).toFixed(1)).join(' ');const cur=vals[vals.length-1],prev=vals[vals.length-2],dv=cur-prev,up=dv>=0;return '<div class="vtrend"><div class="vt-head">📈 컬렉션 가치 추이 <span class="'+(up?'vup':'vdn')+'">'+(up?'▲':'▼')+' '+won(Math.abs(dv))+'</span> <span class="dim">('+hist.length+'회 기록 · 최저 '+won(mn)+' ~ 최고 '+won(mx)+')</span></div><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="spark"><polyline points="'+pts+'" fill="none" stroke="var(--own)" stroke-width="2" stroke-linejoin="round"/></svg></div>';}
@@ -562,7 +615,7 @@ _TABS_JS = '''(function(){
    +sparkline()
    +breakdown()
    +'<div class="backup"><b>💾 백업 코드</b> <span class="dim">— 컬렉션을 글자로 복사해 다른 기기·브라우저에 붙여넣어 옮기기 (파일 저장/불러오기는 ← 사이드바)</span>'
-   +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><span class="bkmsg"></span></div>'
+   +'<div class="bkrow"><button id="bkCopy">📋 코드 복사</button><button id="bkPaste">📥 붙여넣기</button><button id="bkCloud">☁️ 시트로 전송</button><span class="bkmsg"></span></div>'
    +'<div class="bkpaste" hidden><textarea placeholder="복사한 코드를 붙여넣고 적용"></textarea><button id="bkApply">적용</button></div></div>'
    +'<div class="oview"><button data-g="pack">📦 팩별</button><button data-g="flat">📋 전체</button><span class="ovsep"></span><button data-v="album">🖼 도감</button><button data-v="list">☰ 목록</button></div>'
    +'<div class="osort"><span>정렬</span><button data-s="kr">💰 금액</button><button data-s="rarity">⭐ 등급</button><button data-s="jp">🇯🇵 일본가</button><button class="odir" id="odir">⬇ 내림</button><span class="dim" style="font-size:11px">· 목록뷰는 표 머리글 클릭</span></div>';
@@ -572,6 +625,7 @@ _TABS_JS = '''(function(){
   const Q=s=>opn.querySelector(s);
   Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
+  Q('#bkCloud').onclick=()=>{try{localStorage.setItem('pkm_cloud','1')}catch(e){}bkMsg('전송 중…');cloudPush(true);};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
   opn.querySelectorAll('.osort button[data-s]').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{if(ownedSort===b.dataset.s)ownedDir=-ownedDir;else{ownedSort=b.dataset.s;ownedDir=(b.dataset.s==='name'?1:-1);}renderOwned();};});
   const od=opn.querySelector('#odir');if(od){od.textContent=ownedDir>0?'⬆ 오름':'⬇ 내림';od.onclick=()=>{ownedDir=-ownedDir;renderOwned();};}
