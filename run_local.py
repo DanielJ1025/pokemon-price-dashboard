@@ -2,7 +2,7 @@
 
 루트 .env(gitignore)에서 GOOGLE_SERVICE_ACCOUNT_JSON(키 파일 경로)·POKEMON_SHEET_ID 를 읽는다.
 localhost 전용(127.0.0.1). 포트 고정 8765 — 바뀌면 브라우저 저장소(보유 기록)가 갈린다.
-실행: python run_local.py
+실행: python run_local.py  (브라우저 안 열기: --no-browser)
 """
 import os
 import sys
@@ -20,11 +20,13 @@ if env.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
+os.environ.setdefault("LOCAL_NO_TOKEN", "1")  # 127.0.0.1 전용이라 키 불필요
 sys.path.insert(0, str(HERE))
 from app import app  # noqa: E402
 
 if __name__ == "__main__":
     url = f"http://127.0.0.1:{PORT}/"
-    threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    if "--no-browser" not in sys.argv:
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
     print("대시보드:", url, "(종료: Ctrl+C)")
     app.run(host="127.0.0.1", port=PORT)

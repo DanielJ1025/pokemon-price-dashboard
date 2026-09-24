@@ -230,8 +230,36 @@ def _collection_ws():
     return _SHEET["ws"]
 
 
+def _authed():
+    # COLLECTION_TOKEN 있으면 X-Token 일치 필수(Render 공개주소 보호). 없으면 로컬 실행만 허용.
+    tok = os.environ.get("COLLECTION_TOKEN", "").strip()
+    if tok:
+        return request.headers.get("X-Token", "") == tok
+    return os.environ.get("LOCAL_NO_TOKEN") == "1"
+
+
+def _sheet_data(ws):
+    raw = ws.acell("A1").value
+    return json.loads(raw) if raw else None
+
+
+@app.route("/api/collection", methods=["GET"])
+def api_collection_get():
+    if not _authed():
+        return jsonify(ok=False, error="unauthorized"), 401
+    ws = _collection_ws()
+    if not ws:
+        return jsonify(ok=False, error=_SHEET["err"] or "sheet 미설정"), 503
+    try:
+        return jsonify(ok=True, data=_sheet_data(ws))
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
 @app.route("/api/collection", methods=["POST"])
 def api_collection():
+    if not _authed():
+        return jsonify(ok=False, error="unauthorized"), 401
     try:
         obj = json.loads(request.get_data(as_text=True) or "")
         assert isinstance(obj, dict) and "qty" in obj
@@ -241,6 +269,10 @@ def api_collection():
     if not ws:
         return jsonify(ok=False, error=_SHEET["err"] or "sheet 미설정"), 503
     try:
+        # 시트가 원본: 더 최근(ts) 기록이 이미 있으면 덮지 않고 그걸 돌려준다(다른 기기 최신 우선)
+        cur = _sheet_data(ws)
+        if cur and (cur.get("ts") or 0) > (obj.get("ts") or 0):
+            return jsonify(ok=False, error="stale", data=cur), 409
         stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime())
         ws.update([[json.dumps(obj, ensure_ascii=False), stamp]], "A1:B1")
         return jsonify(ok=True, at=stamp, n=len(obj.get("qty", {})))
@@ -466,12 +498,19 @@ _TABS_JS = '''(function(){
  let DB;try{DB=JSON.parse(localStorage.getItem(DBKEY)||"null");}catch(e){DB=null;}
  if(!DB||typeof DB!=="object"){DB={qty:{},wish:{}};try{const oq=JSON.parse(localStorage.getItem("pkm_qty")||"null");if(oq&&typeof oq==="object")DB.qty=oq;else{const oo=JSON.parse(localStorage.getItem("pkm_owned")||"[]");if(Array.isArray(oo))oo.forEach(id=>{DB.qty[id]=1;});}}catch(e){}}
  DB.qty=DB.qty||{};DB.wish=DB.wish||{};DB.hist=DB.hist||[];
- let _cloudT;
- function cloudEnabled(){try{return localStorage.getItem('pkm_cloud')==='1';}catch(e){return false;}}
- function cloudPush(now){if(!now&&!cloudEnabled())return;try{clearTimeout(_cloudT);}catch(e){}_cloudT=setTimeout(function(){fetch('/api/collection',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB)}).then(r=>r.json()).then(j=>{if(now){if(j&&j.ok)toast('☁️ 시트 업로드됨 ('+j.n+'종) · 자동동기화 켜짐');else toast('업로드 실패: '+((j&&j.error)||'?'));}}).catch(()=>{if(now)toast('업로드 실패(네트워크)');});},now?0:2500);}
- const saveDB=()=>{try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}cloudPush(false);};
+ // 구글시트(_컬렉션)가 원본. 열 때 불러오고, 바꿀 때마다 저장. 충돌은 최신 저장시각(ts) 우선.
+ // Render는 ?key=<COLLECTION_TOKEN> 로 한 번 열면 이 브라우저에 키 저장.
+ try{const u=new URL(location.href),k=u.searchParams.get('key');if(k){localStorage.setItem('pkm_token',k);u.searchParams.delete('key');history.replaceState(null,'',u.pathname+u.search+u.hash);}}catch(e){}
+ let _cloudT,_cloudOK=true;
+ function tokH(){const h={'Content-Type':'application/json'};try{const t=localStorage.getItem('pkm_token');if(t)h['X-Token']=t;}catch(e){}return h;}
+ function persist(){try{localStorage.setItem(DBKEY,JSON.stringify(DB));}catch(e){}}
+ function refreshAll(){syncUI();if(!opn.hidden)renderOwned();}
+ function adopt(sd){DB.qty=sd.qty||{};DB.wish=sd.wish||{};const hm={};(DB.hist||[]).forEach(h=>{hm[h.d]=h.v;});(sd.hist||[]).forEach(h=>{if(h&&h.d)hm[h.d]=+h.v||0;});DB.hist=Object.keys(hm).sort().map(d=>({d:d,v:hm[d]})).slice(-120);DB.ts=sd.ts||0;persist();}
+ function cloudPush(now){if(!_cloudOK)return;clearTimeout(_cloudT);_cloudT=setTimeout(function(){fetch('/api/collection',{method:'POST',headers:tokH(),body:JSON.stringify(DB)}).then(r=>r.json().then(j=>[r.status,j])).then(([s,j])=>{if(s===409&&j&&j.data){adopt(j.data);refreshAll();snapshotValue();toast('☁️ 다른 기기의 최신 기록으로 갱신');}else if(j&&j.ok){if(now)toast('☁️ 시트 저장됨 ('+j.n+'종)');}else if(now)toast('시트 저장 실패: '+((j&&j.error)||s));}).catch(()=>{if(now)toast('시트 저장 실패(네트워크)');});},now?0:2500);}
+ const saveDB=()=>{DB.ts=Date.now();persist();cloudPush(false);};
+ setTimeout(function(){fetch('/api/collection',{headers:tokH()}).then(r=>r.json()).then(j=>{if(!j||!j.ok){_cloudOK=false;return;}const sd=j.data,ln=Object.keys(DB.qty).length;if(!sd){if(ln)cloudPush(true);return;}const lt=DB.ts||0,st=sd.ts||0;if(st>lt||(!ln&&Object.keys(sd.qty||{}).length)){adopt(sd);refreshAll();snapshotValue();toast('☁️ 시트에서 불러옴 ('+Object.keys(DB.qty).length+'종)');}else if(lt>st||(!st&&ln)){if(!DB.ts)DB.ts=Date.now();persist();cloudPush(true);}}).catch(()=>{_cloudOK=false;});},0);
  const qOf=el=>DB.qty[el.dataset.id]||0;
- function snapshotValue(){let v=0;document.querySelectorAll('.qty').forEach(el=>{v+=(DB.qty[el.dataset.id]||0)*(+el.dataset.kr||0);});const d=new Date().toISOString().slice(0,10);const last=DB.hist[DB.hist.length-1];if(last&&last.d===d)last.v=v;else DB.hist.push({d:d,v:v});if(DB.hist.length>120)DB.hist=DB.hist.slice(-120);saveDB();}
+ function snapshotValue(){let v=0;document.querySelectorAll('.qty').forEach(el=>{v+=(DB.qty[el.dataset.id]||0)*(+el.dataset.kr||0);});const d=new Date().toISOString().slice(0,10);const last=DB.hist[DB.hist.length-1];if(last&&last.d===d)last.v=v;else DB.hist.push({d:d,v:v});if(DB.hist.length>120)DB.hist=DB.hist.slice(-120);persist();cloudPush(false);}
  function sparkline(){const hist=DB.hist||[];if(hist.length<2)return '<div class="vtrend dim">컬렉션 가치 추이 — 기록이 2일 이상 쌓이면 그래프가 표시됩니다.</div>';const vals=hist.map(h=>h.v),mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1,W=240,H=44;const pts=vals.map((v,i)=>((i/(vals.length-1))*W).toFixed(1)+','+(H-((v-mn)/rng)*(H-8)-4).toFixed(1)).join(' ');const cur=vals[vals.length-1],prev=vals[vals.length-2],dv=cur-prev,up=dv>=0;return '<div class="vtrend"><div class="vt-head">📈 컬렉션 가치 추이 <span class="'+(up?'vup':'vdn')+'">'+(up?'▲':'▼')+' '+won(Math.abs(dv))+'</span> <span class="dim">('+hist.length+'회 기록 · 최저 '+won(mn)+' ~ 최고 '+won(mx)+')</span></div><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" class="spark"><polyline points="'+pts+'" fill="none" stroke="var(--own)" stroke-width="2" stroke-linejoin="round"/></svg></div>';}
  function renderDeals(){
   const rows=DEALS.rows.map(r=>{
@@ -574,7 +613,7 @@ _TABS_JS = '''(function(){
  document.querySelectorAll('.wish').forEach(b=>{const id=b.dataset.id;if(DB.wish[id])b.classList.add('on');b.addEventListener('click',()=>{if(DB.wish[id]){delete DB.wish[id];b.classList.remove('on');}else{DB.wish[id]=1;b.classList.add('on');}saveDB();updateCounts();if(filterMode==='wish')refresh();});});
  function bkMsg(m){const s=opn.querySelector('.bkmsg');if(s){s.textContent=m;setTimeout(()=>{if(s)s.textContent='';},2500);}}
  function syncUI(){updateCounts();document.querySelectorAll('.qty').forEach(el=>{const v=DB.qty[el.dataset.id]||0;el.querySelector('.qn').textContent=v;el.classList.toggle('has',v>0);});document.querySelectorAll('.wish').forEach(b=>b.classList.toggle('on',!!DB.wish[b.dataset.id]));}
- function mergeIn(obj){if(!obj||typeof obj!=='object')return false;const q=obj.qty||{},w=obj.wish||{};Object.keys(q).forEach(id=>{const v=Math.max(DB.qty[id]||0,+q[id]||0);if(v)DB.qty[id]=v;});Object.keys(w).forEach(id=>{if(w[id])DB.wish[id]=1;});if(Array.isArray(obj.hist)){const hm={};obj.hist.forEach(h=>{if(h&&h.d)hm[h.d]=+h.v||0;});(DB.hist||[]).forEach(h=>{hm[h.d]=h.v;});DB.hist=Object.keys(hm).sort().map(d=>({d:d,v:hm[d]})).slice(-120);}saveDB();return true;}
+ function mergeIn(obj){if(!obj||typeof obj!=='object')return false;const q=obj.qty||{},w=obj.wish||{};Object.keys(q).forEach(id=>{const v=Math.max(DB.qty[id]||0,+q[id]||0);if(v)DB.qty[id]=v;});Object.keys(w).forEach(id=>{if(w[id])DB.wish[id]=1;});if(Array.isArray(obj.hist)){const hm={};obj.hist.forEach(h=>{if(h&&h.d)hm[h.d]=+h.v||0;});(DB.hist||[]).forEach(h=>{hm[h.d]=h.v;});DB.hist=Object.keys(hm).sort().map(d=>({d:d,v:hm[d]})).slice(-120);}saveDB();snapshotValue();return true;}
  function buildBlock(label,items){
   let sub=0,cnt=0;const alb=ownedView==='album';
   const body=alb?document.createElement('div'):document.createElement('tbody');if(alb)body.className='agrid';
@@ -625,7 +664,7 @@ _TABS_JS = '''(function(){
   const Q=s=>opn.querySelector(s);
   Q('#bkCopy').onclick=()=>{const s=JSON.stringify(DB);(navigator.clipboard?navigator.clipboard.writeText(s):Promise.reject()).then(()=>bkMsg('코드 복사됨')).catch(()=>{const p=Q('.bkpaste');p.hidden=false;p.querySelector('textarea').value=s;bkMsg('아래 코드를 복사하세요');});};
   Q('#bkPaste').onclick=()=>{const p=Q('.bkpaste');p.hidden=!p.hidden;};
-  Q('#bkCloud').onclick=()=>{try{localStorage.setItem('pkm_cloud','1')}catch(e){}bkMsg('전송 중…');cloudPush(true);};
+  Q('#bkCloud').onclick=()=>{DB.ts=Date.now();persist();_cloudOK=true;bkMsg('전송 중…');cloudPush(true);};
   Q('#bkApply').onclick=()=>{try{if(mergeIn(JSON.parse(Q('.bkpaste textarea').value))){syncUI();renderOwned();bkMsg('적용됨');}}catch(e){bkMsg('코드 오류');}};
   opn.querySelectorAll('.osort button[data-s]').forEach(b=>{b.classList.toggle('on',b.dataset.s===ownedSort);b.onclick=()=>{if(ownedSort===b.dataset.s)ownedDir=-ownedDir;else{ownedSort=b.dataset.s;ownedDir=(b.dataset.s==='name'?1:-1);}renderOwned();};});
   const od=opn.querySelector('#odir');if(od){od.textContent=ownedDir>0?'⬆ 오름':'⬇ 내림';od.onclick=()=>{ownedDir=-ownedDir;renderOwned();};}
