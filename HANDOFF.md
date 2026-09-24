@@ -5,7 +5,7 @@
 - **인증:** `COLLECTION_TOKEN` 있으면 `X-Token` 필수(브라우저는 `?key=` 1회로 저장). 없으면 `LOCAL_NO_TOKEN=1`(run_local.py가 설정)일 때만 허용. **Render는 아직 토큰·시트 env 미설정 → 동기화 401(의도)**. 설정: `COLLECTION_TOKEN`·`POKEMON_SHEET_ID`·`GOOGLE_SERVICE_ACCOUNT_JSON`(키 JSON 내용).
 - **로컬 실행:** `python run_local.py`(127.0.0.1:8765 고정, `--no-browser`). 루트 `.env`(gitignore)=서비스계정 키 경로·시트ID. 키 원본=`D:\00_AI_DEV\00_CLAUDE\60_PERSONAL\00_POKEMON\LOGIN\pokemon_service_account.json`.
 - **카드별 시세 추이:** build() 때 보유·위시 카드 시세를 `_카드시세` 탭(날짜|카드ID|가격)에 하루 1줄 append → `GET /api/price-history` → 도감 타일 아래 미니 추이선+등락%. 과거 `시세이력` 탭(9/11~19) 71종 이관 완료. **서버가 켜진 날만 기록됨**(매일 쌓으려면 Render env 설정).
-- **Render 서비스는 suspended**(무료 750h — 야근앱만 상시). 매일 기록은 `python run_local.py --record`(서버 없이 기록만, 같은 날 중복 스킵) — 윈도우 스케줄러 등록은 사용자 승인 대기. 목록 보기에도 📈 추이 열 추가.
+- **Render 서비스는 suspended**(무료 750h — 야근앱만 상시). 매일 기록은 `python run_local.py --record`(서버 없이 기록만, 같은 날 중복 스킵) — **Daniel PC(jeong) 작업스케줄러 `PokemonPriceRecord` 매일 09:00 등록(260924, 놓치면 켤 때 실행·pythonw 창없음).** 다른 PC도 원하면 동일 등록. 목록 보기에도 📈 추이 열 추가.
 - 백업 병합(mergeIn)이 hist도 날짜 합집합, 병합 후 오늘 가치 재계산(gen.py 파리티).
 - 정적 gen.py(파일 페이지)는 서버가 없어 시트 동기화·카드 추이 없음 — 로컬은 run_local.py 권장.
 - 시트의 보유카드·보유현황·평가추이 탭을 채우던 PC 스케줄러(`pokemon_sheets_sync.py`, 구 YWJ 리포)는 9/19 이후 정지.
