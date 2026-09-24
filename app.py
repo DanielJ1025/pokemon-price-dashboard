@@ -159,6 +159,7 @@ def _base_count(rows):
 
 def build():
     secs = []
+    prices = {}
     for disp, query, owned in PACKS:
         try:
             allrows = pull(query)
@@ -166,6 +167,7 @@ def build():
             allrows = []
         if not allrows:
             continue
+        prices.update({g["id"]: g["kr"] for g in allrows if g.get("id") and g.get("kr")})
         base = _base_count(allrows)
         own = '<span class="own-badge">보유</span>' if owned else ""
         meta = f"전체 {len(allrows)}종 · 정규 [{base}] · 최고 🇰🇷 ₩{allrows[0]['kr']:,}"
@@ -173,6 +175,7 @@ def build():
                     f'{H.escape(disp)}</h2>{own}<span class="pack-meta">{meta}'
                     f'<span class="own-cnt"></span></span><div class="pack-prog"></div></div>'
                     f'{table_html(allrows, disp)}</section>')
+    record_prices(prices)
     upd = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     tabs = (f'<script>const DEALS={json.dumps(DEALS, ensure_ascii=False)};'
             f'{_TABS_JS}</script>')
@@ -278,6 +281,60 @@ def api_collection():
         return jsonify(ok=True, at=stamp, n=len(obj.get("qty", {})))
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500
+
+
+# ── 카드별 시세 기록 (구글시트 _카드시세 탭: 날짜 | 카드ID | 가격) ─────────
+# 페이지가 빌드될 때(1시간 캐시) 보유·위시 카드의 오늘 시세를 하루 한 줄씩 append.
+# 같은 날 이미 있는 카드는 건너뜀 → 로컬·Render 동시 가동이어도 중복 없음.
+_PH = {"day": None, "done": set()}
+
+
+def _price_ws():
+    ws = _collection_ws()
+    if not ws:
+        return None
+    try:
+        return ws.spreadsheet.worksheet("_카드시세")
+    except Exception:
+        w = ws.spreadsheet.add_worksheet(title="_카드시세", rows=1000, cols=3)
+        w.update([["날짜", "카드ID", "가격"]], "A1:C1")
+        return w
+
+
+def record_prices(prices):
+    day = time.strftime("%Y-%m-%d", time.localtime())
+    try:
+        col = _sheet_data(_collection_ws()) if _collection_ws() else None
+        if not col:
+            return
+        ids = (set(col.get("qty", {})) | set(col.get("wish", {}))) & set(prices)
+        if _PH["day"] != day:
+            _PH["day"], _PH["done"] = day, None
+        if _PH["done"] is not None and not (ids - _PH["done"]):
+            return
+        ws = _price_ws()
+        if _PH["done"] is None:
+            _PH["done"] = {r[1] for r in ws.get_all_values()[1:] if len(r) > 1 and r[0] == day}
+        new = sorted(ids - _PH["done"])
+        if new:
+            ws.append_rows([[day, i, prices[i]] for i in new], value_input_option="RAW")
+            _PH["done"] |= set(new)
+    except Exception:
+        pass
+
+
+@app.route("/api/price-history")
+def api_price_history():
+    if not _authed():
+        return jsonify(ok=False, error="unauthorized"), 401
+    ws = _price_ws()
+    if not ws:
+        return jsonify(ok=False, error=_SHEET["err"] or "sheet 미설정"), 503
+    out = {}
+    for r in ws.get_all_values()[1:]:
+        if len(r) > 2 and r[2].isdigit():
+            out.setdefault(r[1], {})[r[0]] = int(r[2])
+    return jsonify(ok=True, data={k: sorted(v.items()) for k, v in out.items()})
 
 
 _HEADER = ('<header class="top"><h1>내 포켓몬 카드 시세판</h1>'
@@ -432,6 +489,8 @@ _TABS_CSS = ('.wrap{max-width:none;margin:0;padding:22px 16px 56px;display:flex;
              '.oview button:hover{color:var(--text)}.oview button.on{background:var(--own);color:#fff;border-color:var(--own)}'
              '.ovsep{width:1px;align-self:stretch;background:var(--border);margin:2px 4px}'
              '.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;padding:4px 0 2px}'
+             '.aph{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;margin:3px 0 2px;font-variant-numeric:tabular-nums}'
+             '.aph svg{width:56px;height:18px;flex:0 0 auto}'
              '.acard{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}'
              '.ath{width:100%;aspect-ratio:5/7;object-fit:cover;display:block;background:var(--line);cursor:zoom-in}'
              '.ath.noimg{display:flex;align-items:center;justify-content:center;font-size:34px;opacity:.5}'
@@ -508,6 +567,15 @@ _TABS_JS = '''(function(){
  function adopt(sd){DB.qty=sd.qty||{};DB.wish=sd.wish||{};const hm={};(DB.hist||[]).forEach(h=>{hm[h.d]=h.v;});(sd.hist||[]).forEach(h=>{if(h&&h.d)hm[h.d]=+h.v||0;});DB.hist=Object.keys(hm).sort().map(d=>({d:d,v:hm[d]})).slice(-120);DB.ts=sd.ts||0;persist();}
  function cloudPush(now){if(!_cloudOK)return;clearTimeout(_cloudT);_cloudT=setTimeout(function(){fetch('/api/collection',{method:'POST',headers:tokH(),body:JSON.stringify(DB)}).then(r=>r.json().then(j=>[r.status,j])).then(([s,j])=>{if(s===409&&j&&j.data){adopt(j.data);refreshAll();snapshotValue();toast('☁️ 다른 기기의 최신 기록으로 갱신');}else if(j&&j.ok){if(now)toast('☁️ 시트 저장됨 ('+j.n+'종)');}else if(now)toast('시트 저장 실패: '+((j&&j.error)||s));}).catch(()=>{if(now)toast('시트 저장 실패(네트워크)');});},now?0:2500);}
  const saveDB=()=>{DB.ts=Date.now();persist();cloudPush(false);};
+ let PH={};
+ setTimeout(function(){fetch('/api/price-history',{headers:tokH()}).then(r=>r.json()).then(j=>{if(j&&j.ok){PH=j.data||{};if(!opn.hidden)renderOwned();}}).catch(()=>{});},0);
+ function phHtml(id,kr){let s=(PH[id]||[]).slice();const td=new Date().toISOString().slice(0,10);if(kr&&(!s.length||s[s.length-1][0]<td))s.push([td,kr]);
+  if(s.length<2)return '<div class="aph dim">📈 시세 기록 중</div>';
+  const v=s.map(x=>x[1]),mn=Math.min.apply(null,v),mx=Math.max.apply(null,v),rg=(mx-mn)||1,W=100,Hh=22;
+  const pts=v.map((x,i)=>((i/(v.length-1))*W).toFixed(1)+','+(Hh-((x-mn)/rg)*(Hh-4)-2).toFixed(1)).join(' ');
+  const d=v[v.length-1]-v[0],pc=v[0]?Math.round(d/v[0]*100):0,cl=d>0?'vup':(d<0?'vdn':'dim'),ar=d>0?'▲':(d<0?'▼':'–');
+  const since=s[0][0].slice(5).replace('-','/');
+  return '<div class="aph" title="'+s.map(x=>x[0]+' '+won(x[1])).join('\\n')+'"><svg viewBox="0 0 '+W+' '+Hh+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="'+(d<0?'var(--mur)':'var(--own)')+'" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg><span class="'+cl+'">'+ar+' '+Math.abs(pc)+'%</span> <span class="dim">'+since+'~</span></div>';}
  setTimeout(function(){fetch('/api/collection',{headers:tokH()}).then(r=>r.json()).then(j=>{if(!j||!j.ok){_cloudOK=false;return;}const sd=j.data,ln=Object.keys(DB.qty).length;if(!sd){if(ln)cloudPush(true);return;}const lt=DB.ts||0,st=sd.ts||0;if(st>lt||(!ln&&Object.keys(sd.qty||{}).length)){adopt(sd);refreshAll();snapshotValue();toast('☁️ 시트에서 불러옴 ('+Object.keys(DB.qty).length+'종)');}else if(lt>st||(!st&&ln)){if(!DB.ts)DB.ts=Date.now();persist();cloudPush(true);}}).catch(()=>{_cloudOK=false;});},0);
  const qOf=el=>DB.qty[el.dataset.id]||0;
  function snapshotValue(){let v=0;document.querySelectorAll('.qty').forEach(el=>{v+=(DB.qty[el.dataset.id]||0)*(+el.dataset.kr||0);});const d=new Date().toISOString().slice(0,10);const last=DB.hist[DB.hist.length-1];if(last&&last.d===d)last.v=v;else DB.hist.push({d:d,v:v});if(DB.hist.length>120)DB.hist=DB.hist.slice(-120);persist();cloudPush(false);}
@@ -618,7 +686,7 @@ _TABS_JS = '''(function(){
   let sub=0,cnt=0;const alb=ownedView==='album';
   const body=alb?document.createElement('div'):document.createElement('tbody');if(alb)body.className='agrid';
   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;
-   if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const ebl=tr.querySelector('.ebay');const ebh=ebl?ebl.getAttribute('href'):'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div>'+(ebh?'<a class="ebay-a" href="'+ebh+'" target="_blank" rel="noopener nofollow">🇺🇸 eBay 시세</a>':'')+'</div>';body.appendChild(tile);}
+   if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const ebl=tr.querySelector('.ebay');const ebh=ebl?ebl.getAttribute('href'):'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div>'+phHtml(el.dataset.id,kr)+(ebh?'<a class="ebay-a" href="'+ebh+'" target="_blank" rel="noopener nofollow">🇺🇸 eBay 시세</a>':'')+'</div>';body.appendChild(tile);}
    else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
   });
   const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+label+' <span class="dim">'+items.length+'종 '+cnt+'장 · '+won(sub)+'</span></div>';
