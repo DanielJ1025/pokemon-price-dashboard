@@ -491,6 +491,7 @@ _TABS_CSS = ('.wrap{max-width:none;margin:0;padding:22px 16px 56px;display:flex;
              '.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;padding:4px 0 2px}'
              '.aph{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;margin:3px 0 2px;font-variant-numeric:tabular-nums}'
              '.aph svg{width:56px;height:18px;flex:0 0 auto}'
+             '.tph .aph{margin:0;white-space:nowrap}.tph-h{white-space:nowrap}'
              '.acard{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}'
              '.ath{width:100%;aspect-ratio:5/7;object-fit:cover;display:block;background:var(--line);cursor:zoom-in}'
              '.ath.noimg{display:flex;align-items:center;justify-content:center;font-size:34px;opacity:.5}'
@@ -639,7 +640,7 @@ _TABS_JS = '''(function(){
   else if(ownedSort==='jp'){ka=cellNum(a,'.tj');kb=cellNum(b,'.tj');}
   else{ka=cellNum(a,'.tp');kb=cellNum(b,'.tp');}
   return (typeof ka==='string'?ka.localeCompare(kb,'ko'):ka-kb)*ownedDir;});}
- function ownedHead(){return '<tr>'+[['num','번호'],['name','카드'],['kr','🇰🇷한국'],['jp','🇯🇵일본']].map(x=>{const on=ownedSort===x[0];const wc=(x[0]==='kr'||x[0]==='jp')?' wcolh':'';return '<th class="sortable'+wc+(on?' sorted':'')+'" data-k="'+x[0]+'"'+(on?' data-dir="'+(ownedDir>0?'up':'down')+'"':'')+'>'+x[1]+'</th>';}).join('')+'</tr>';}
+ function ownedHead(){return '<tr>'+[['num','번호'],['name','카드'],['kr','🇰🇷한국'],['jp','🇯🇵일본']].map(x=>{const on=ownedSort===x[0];const wc=(x[0]==='kr'||x[0]==='jp')?' wcolh':'';return '<th class="sortable'+wc+(on?' sorted':'')+'" data-k="'+x[0]+'"'+(on?' data-dir="'+(ownedDir>0?'up':'down')+'"':'')+'>'+x[1]+'</th>';}).join('')+'<th class="tph-h">📈 추이</th></tr>';}
  function packStat(sec){
   const base=parseInt(sec.dataset.base)||0;const seen=new Set();let cards=0,val=0,dupes=0,uniq=0,topKr=0,topName='';
   sec.querySelectorAll('tbody tr').forEach(tr=>{const el=tr.querySelector('.qty');if(!el)return;const q=DB.qty[el.dataset.id]||0;if(q>0){cards+=q;uniq++;const kr=+el.dataset.kr||0;val+=q*kr;if(q>=2)dupes++;if(kr>topKr){topKr=kr;const a=tr.querySelector('.cc-txt a');topName=a?a.textContent:'';}const t=tr.querySelector('.tn');const n=t?parseInt(t.textContent):NaN;if(!isNaN(n)&&base&&n<=base)seen.add(n);}});
@@ -687,7 +688,7 @@ _TABS_JS = '''(function(){
   const body=alb?document.createElement('div'):document.createElement('tbody');if(alb)body.className='agrid';
   items.forEach(el=>{const tr=el.closest('tr');if(!tr)return;const q=DB.qty[el.dataset.id]||0,kr=+el.dataset.kr||0;sub+=q*kr;cnt+=q;
    if(alb){const img=tr.querySelector('img.tth');const src=img?img.getAttribute('src'):'';const na=tr.querySelector('.cc-txt a');const name=na?na.textContent:'';const link=na?na.getAttribute('href'):'#';const rtag=tr.querySelector('.rtag');const rt=rtag?rtag.outerHTML:'';const pr=tr.querySelector('.tp');const prt=pr?pr.textContent:'';const nm=tr.querySelector('.tn');const numt=nm?nm.textContent:'';const ebl=tr.querySelector('.ebay');const ebh=ebl?ebl.getAttribute('href'):'';const tile=document.createElement('div');tile.className='acard';tile.innerHTML=(src?'<img class="ath" src="'+src+'" alt=""/>':'<div class="ath noimg">🎴</div>')+'<div class="ainfo"><div class="atop">'+rt+'<span class="aq">×'+q+'</span></div><div class="aname"><a href="'+link+'" target="_blank" rel="noopener">'+name+'</a></div><div class="aprice">'+prt+'<span class="anum">'+numt+'</span></div>'+phHtml(el.dataset.id,kr)+(ebh?'<a class="ebay-a" href="'+ebh+'" target="_blank" rel="noopener nofollow">🇺🇸 eBay 시세</a>':'')+'</div>';body.appendChild(tile);}
-   else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();body.appendChild(c);}
+   else{const c=tr.cloneNode(true);const qc=c.querySelector('.qty');if(qc){const s=document.createElement('span');s.className='xq';s.textContent='×'+q;qc.replaceWith(s);}const wb=c.querySelector('.wish');if(wb)wb.remove();const tp=document.createElement('td');tp.className='tph';tp.innerHTML=phHtml(el.dataset.id,kr);c.appendChild(tp);body.appendChild(c);}
   });
   const d=document.createElement('div');d.className='owned-grp';d.innerHTML='<div class="owned-h">'+label+' <span class="dim">'+items.length+'종 '+cnt+'장 · '+won(sub)+'</span></div>';
   if(alb){d.appendChild(body);}else{const tbl=document.createElement('table');const thd=document.createElement('thead');thd.innerHTML=ownedHead();tbl.appendChild(thd);tbl.appendChild(body);const w=document.createElement('div');w.className='tblwrap';w.appendChild(tbl);d.appendChild(w);}
