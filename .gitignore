@@ -12,3 +12,6 @@ watcher/card_watch_state.json
 # 이미지 원본 디스크 캐시(재생성 속도용)
 .imgcache/
 watcher/.imgcache/
+
+# 개인 보유 백업(시트 추출본)
+watcher/pkm_backup*.json
