@@ -708,6 +708,10 @@ _TABS_JS = '''(function(){
   opn.innerHTML='';
   let total=0,val=0,uniq=0,dupes=0,ownedBase=0,base=0,topKr=0,topName='';
   packs.forEach(sec=>{const st=packStat(sec);total+=st.cards;val+=st.val;uniq+=st.uniq;dupes+=st.dupes;ownedBase+=st.ownedBase;base+=st.base;if(st.topKr>topKr){topKr=st.topKr;topName=st.topName;}});
+  // 처분 관점 가치: AR 이상 합계 + 등급별 매도 할인율(샵 매입·수수료·배송비 감안 추정)
+  const LQ={MUR:.8,HR:.8,UR:.8,SAR:.8,BWR:.8,SIR:.8,SR:.6,AR:.6,RR:.4,ACE:.4};let arVal=0,liqVal=0;
+  document.querySelectorAll('.qty').forEach(el=>{const q=DB.qty[el.dataset.id]||0;if(q<=0)return;const t=el.closest('tr').querySelector('.rtag');const r=t?t.textContent.replace('[','').replace(']','').trim():'';const v=q*(+el.dataset.kr||0),f=LQ[r]||.1;if(f>=.6)arVal+=v;liqVal+=v*f;});
+  liqVal=Math.round(liqVal/100)*100;
   const blocks=[];
   if(ownedGroup==='flat'){let items=[];packs.forEach(sec=>{sec.querySelectorAll('.qty').forEach(el=>{if((DB.qty[el.dataset.id]||0)>0)items.push(el);});});sortItems(items);if(items.length)blocks.push(buildBlock('전체',items));}
   else{packs.forEach(sec=>{const items=[...sec.querySelectorAll('.qty')].filter(el=>(DB.qty[el.dataset.id]||0)>0);if(!items.length)return;sortItems(items);const pack=(sec.querySelector('h2')||{textContent:''}).textContent.trim();blocks.push(buildBlock(pack,items));});}
@@ -716,6 +720,8 @@ _TABS_JS = '''(function(){
    +'<div class="stats"><div class="st"><b>'+total+'</b><span>총 장수</span></div>'
    +'<div class="st"><b>'+uniq+'</b><span>고유 종수</span></div>'
    +'<div class="st"><b>'+won(val)+'</b><span>추정 가치</span></div>'
+   +'<div class="st" title="AR·SR·SAR·UR·MUR 등만 합산 (RR 이하 제외)"><b>'+won(arVal)+'</b><span>AR 이상 가치</span></div>'
+   +'<div class="st" title="매도 추정: SAR 이상 80% · SR·AR 60% · RR·ACE 40% · 그 외 10%"><b>'+won(liqVal)+'</b><span>처분 예상가</span></div>'
    +'<div class="st"><b>'+ownedBase+'/'+base+'</b><span>정규 완성 '+pct(ownedBase,base)+'%</span></div>'
    +'<div class="st"><b>'+dupes+'</b><span>여분 종(2+)</span></div>'
    +'<div class="st"><b>'+wishN+'</b><span>★ 위시</span></div></div>'
